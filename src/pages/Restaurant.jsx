@@ -57,7 +57,15 @@ export default function Restaurant() {
     }
   }, [canvasDate])
 
-  useEffect(() => { load(); const u1 = subscribeToTable('restaurant_tables', () => load()); const u2 = subscribeToTable('restaurant_reservations', () => load()); return () => { u1(); u2() } }, [load])
+  // Re-fetch data when canvasDate changes
+  useEffect(() => { load() }, [load])
+
+  // Realtime subscriptions — stable, independent of canvasDate
+  useEffect(() => {
+    const u1 = subscribeToTable('restaurant_tables', () => load())
+    const u2 = subscribeToTable('restaurant_reservations', () => load())
+    return () => { u1(); u2() }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const zones = [...new Set(tables.map(t => t.location || 'innen'))].sort()
   if (zones.length === 0) zones.push('innen')
@@ -292,7 +300,7 @@ export default function Restaurant() {
         </div>
         <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
           <button onClick={() => { const d = new Date(canvasDate); d.setDate(d.getDate() - 1); setCanvasDate(d.toISOString().split('T')[0]) }} style={s.navBtn}>←</button>
-          <input type="date" value={canvasDate} onChange={e => setCanvasDate(e.target.value)} style={{ padding: '5px 10px', background: 'var(--bgCard)', border: '1px solid var(--borderLight)', borderRadius: 8, fontSize: 11, color: 'var(--text)', fontFamily: 'inherit' }} />
+          <CanvasDatePicker value={canvasDate} onChange={setCanvasDate} allReservations={allReservations} />
           <button onClick={() => setCanvasDate(new Date().toISOString().split('T')[0])} style={{ padding: '5px 10px', borderRadius: 6, fontSize: 10, cursor: 'pointer', fontFamily: 'inherit', background: canvasDate === new Date().toISOString().split('T')[0] ? 'var(--text)' : 'var(--bgCard)', color: canvasDate === new Date().toISOString().split('T')[0] ? 'var(--bg)' : 'var(--textMuted)', border: `1px solid ${canvasDate === new Date().toISOString().split('T')[0] ? 'var(--text)' : 'var(--borderLight)'}` }}>Heute</button>
           <button onClick={() => { const d = new Date(canvasDate); d.setDate(d.getDate() + 1); setCanvasDate(d.toISOString().split('T')[0]) }} style={s.navBtn}>→</button>
         </div>
@@ -940,6 +948,118 @@ function AddReservationModal({ table, onSave, onCancel }) {
         <button style={{ ...s.saveBtn, opacity: !guest ? 0.4 : 1 }} disabled={!guest} onClick={() => onSave({ guest, time, party, notes })}>Reservieren</button>
       </div>
     </div></div>
+  )
+}
+
+function CanvasDatePicker({ value, onChange, allReservations }) {
+  const [open, setOpen] = useState(false)
+  const [viewMonth, setViewMonth] = useState(() => { const d = new Date(value); return new Date(d.getFullYear(), d.getMonth(), 1) })
+  const ref = useRef(null)
+
+  useEffect(() => {
+    if (!open) return
+    const handle = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false) }
+    document.addEventListener('mousedown', handle)
+    return () => document.removeEventListener('mousedown', handle)
+  }, [open])
+
+  useEffect(() => {
+    const d = new Date(value)
+    setViewMonth(new Date(d.getFullYear(), d.getMonth(), 1))
+  }, [value])
+
+  const year = viewMonth.getFullYear()
+  const month = viewMonth.getMonth()
+  const firstDay = new Date(year, month, 1).getDay() || 7
+  const daysInMonth = new Date(year, month + 1, 0).getDate()
+  const cells = []
+  for (let i = 1; i < firstDay; i++) cells.push(null)
+  for (let i = 1; i <= daysInMonth; i++) cells.push(i)
+
+  const today = new Date().toISOString().split('T')[0]
+  const selectedDate = new Date(value + 'T00:00')
+  const displayLabel = selectedDate.toLocaleDateString('de-DE', { weekday: 'short', day: 'numeric', month: 'short' })
+
+  const prevMonth = () => setViewMonth(new Date(year, month - 1, 1))
+  const nextMonth = () => setViewMonth(new Date(year, month + 1, 1))
+
+  return (
+    <div ref={ref} style={{ position: 'relative' }}>
+      <button onClick={() => setOpen(!open)} style={{
+        padding: '5px 12px', background: 'var(--bgCard)', border: '1px solid var(--borderLight)', borderRadius: 8,
+        fontSize: 11, color: 'var(--text)', fontFamily: 'inherit', cursor: 'pointer', fontWeight: 500, minWidth: 100,
+        display: 'flex', alignItems: 'center', gap: 6,
+      }}>
+        <span>{displayLabel}</span>
+        <span style={{ fontSize: 8, color: 'var(--textDim)' }}>{open ? '▲' : '▼'}</span>
+      </button>
+
+      {open && (
+        <div style={{
+          position: 'absolute', top: '100%', right: 0, marginTop: 6, zIndex: 60,
+          background: 'var(--modalBg, #111)', border: '1px solid var(--modalBorder, #222)', borderRadius: 14,
+          padding: 14, width: 280, boxShadow: '0 12px 40px rgba(0,0,0,0.5)',
+        }}>
+          {/* Month nav */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+            <button onClick={prevMonth} style={{ background: 'none', border: 'none', color: 'var(--textMuted)', fontSize: 14, cursor: 'pointer', padding: '2px 8px' }}>←</button>
+            <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)' }}>
+              {viewMonth.toLocaleDateString('de-DE', { month: 'long', year: 'numeric' })}
+            </span>
+            <button onClick={nextMonth} style={{ background: 'none', border: 'none', color: 'var(--textMuted)', fontSize: 14, cursor: 'pointer', padding: '2px 8px' }}>→</button>
+          </div>
+
+          {/* Weekday headers */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 2, marginBottom: 4 }}>
+            {['Mo','Di','Mi','Do','Fr','Sa','So'].map(d => (
+              <div key={d} style={{ fontSize: 9, color: 'var(--textDim)', textAlign: 'center', padding: 2, fontWeight: 500 }}>{d}</div>
+            ))}
+          </div>
+
+          {/* Day cells */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 2 }}>
+            {cells.map((day, i) => {
+              if (!day) return <div key={i} />
+              const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+              const resCount = allReservations.filter(r => r.date === dateStr && r.status !== 'cancelled').length
+              const isToday = dateStr === today
+              const isSelected = dateStr === value
+              const isPast = dateStr < today
+
+              return (
+                <button key={i} onClick={() => { onChange(dateStr); setOpen(false) }} style={{
+                  padding: '4px 2px', textAlign: 'center', cursor: 'pointer', borderRadius: 8, border: 'none',
+                  background: isSelected ? '#3b82f6' : isToday ? 'rgba(59,130,246,0.12)' : 'transparent',
+                  opacity: isPast ? 0.4 : 1, fontFamily: 'inherit', minHeight: 36,
+                  display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                }}>
+                  <div style={{
+                    fontSize: 12, fontWeight: isSelected || isToday ? 600 : 400,
+                    color: isSelected ? '#fff' : isToday ? '#3b82f6' : 'var(--text)',
+                  }}>{day}</div>
+                  {resCount > 0 && (
+                    <div style={{
+                      fontSize: 8, fontWeight: 600, marginTop: 1, lineHeight: 1,
+                      color: isSelected ? 'rgba(255,255,255,0.85)' : '#3b82f6',
+                    }}>{resCount}</div>
+                  )}
+                  {resCount === 0 && <div style={{ fontSize: 8, marginTop: 1, lineHeight: 1, color: 'transparent' }}>·</div>}
+                </button>
+              )
+            })}
+          </div>
+
+          {/* Quick jump to today */}
+          {value !== today && (
+            <button onClick={() => { onChange(today); setOpen(false) }} style={{
+              width: '100%', marginTop: 8, padding: '6px 0', background: 'rgba(59,130,246,0.06)',
+              border: '1px solid rgba(59,130,246,0.15)', borderRadius: 8, fontSize: 10, color: '#3b82f6',
+              cursor: 'pointer', fontFamily: 'inherit', fontWeight: 500,
+            }}>Heute</button>
+          )}
+        </div>
+      )}
+    </div>
   )
 }
 
