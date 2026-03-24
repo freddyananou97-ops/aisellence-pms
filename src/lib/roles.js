@@ -1,0 +1,60 @@
+export const ROLES = {
+  admin: {
+    label: 'Administrator',
+    modules: ['/', '/buchungen', '/kalender', '/gaeste', '/rechnungen', '/analytics', '/schichtbuch', '/zimmer', '/housekeeping', '/kitchen', '/restaurant', '/fruehstueck', '/spa', '/wartung', '/feedback', '/settings'],
+    defaultRoute: '/',
+  },
+  rezeption: {
+    label: 'Rezeption',
+    modules: ['/', '/buchungen', '/kalender', '/gaeste', '/rechnungen', '/analytics', '/schichtbuch', '/zimmer', '/housekeeping', '/kitchen', '/restaurant', '/fruehstueck', '/spa', '/wartung', '/feedback', '/settings'],
+    defaultRoute: '/',
+  },
+  housekeeping: {
+    label: 'Housekeeping',
+    modules: ['/housekeeping'],
+    defaultRoute: '/housekeeping',
+  },
+  maintenance: {
+    label: 'Wartung',
+    modules: ['/wartung', '/housekeeping'],
+    defaultRoute: '/wartung',
+  },
+  kitchen: {
+    label: 'Küche / Room Service',
+    modules: ['/kitchen'],
+    defaultRoute: '/kitchen',
+  },
+  restaurant: {
+    label: 'Restaurant',
+    modules: ['/restaurant', '/fruehstueck'],
+    defaultRoute: '/restaurant',
+  },
+  spa: {
+    label: 'Spa',
+    modules: ['/spa'],
+    defaultRoute: '/spa',
+  },
+  nachtschicht: {
+    label: 'Nachtschicht',
+    modules: ['/', '/buchungen', '/schichtbuch', '/zimmer', '/housekeeping'],
+    defaultRoute: '/',
+  },
+}
+
+export const CONCIERGE_MODULES = ['/', '/housekeeping', '/kitchen', '/wartung', '/analytics', '/feedback', '/settings']
+
+export function canAccess(role, path) {
+  const r = ROLES[role] || ROLES.admin
+  return r.modules.includes(path)
+}
+
+export function getDefaultRoute(role) {
+  const r = ROLES[role] || ROLES.admin
+  return r.defaultRoute
+}
+
+export function getAllowedModules(role, tier = 'pms') {
+  const r = ROLES[role] || ROLES.admin
+  if (tier === 'concierge') return r.modules.filter(m => CONCIERGE_MODULES.includes(m))
+  return r.modules
+}

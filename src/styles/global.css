@@ -1,0 +1,138 @@
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+:root {
+  /* New theme variables (set by JS) */
+  --bg: #080808;
+  --bgSec: #0b0b0b;
+  --bgCard: #0e0e0e;
+  --border: #151515;
+  --borderLight: #1a1a1a;
+  --text: #ffffff;
+  --textSec: #cccccc;
+  --textMuted: #888888;
+  --textDim: #444444;
+  --active: rgba(255,255,255,0.06);
+  --inputBg: #080808;
+  --overlayBg: rgba(0,0,0,0.7);
+  --modalBg: #111111;
+  --modalBorder: #222222;
+
+  /* Legacy aliases (used by existing pages) */
+  --bg-primary: var(--bg);
+  --bg-secondary: var(--bgSec);
+  --bg-card: var(--bgCard);
+  --bg-hover: rgba(255,255,255,0.04);
+  --bg-active: var(--active);
+  --border-light: var(--borderLight);
+  --text-primary: var(--text);
+  --text-secondary: var(--textMuted);
+  --text-muted: var(--textDim);
+  --text-dim: #2a2a2a;
+
+  /* Accent colors (unchanged between themes) */
+  --accent-green: #10b981;
+  --accent-red: #ef4444;
+  --accent-amber: #f59e0b;
+  --accent-blue: #3b82f6;
+  --accent-purple: #8b5cf6;
+  --radius: 12px;
+  --radius-sm: 8px;
+}
+
+body {
+  font-family: system-ui, -apple-system, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  -webkit-font-smoothing: antialiased;
+}
+
+input, button, textarea, select { font-family: inherit; }
+a { text-decoration: none; color: inherit; }
+
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #1a1a1a; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #333; }
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+.fade-in { animation: fadeIn 0.3s ease-out; }
+.pulse { animation: pulse 2s ease-in-out infinite; }
+
+/* ====== RESPONSIVE STYLES ====== */
+@media (max-width: 768px) {
+  /* Grids collapse to 1-2 columns */
+  [style*="gridTemplateColumns: repeat(auto-fill"] {
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)) !important;
+  }
+
+  /* 3-column grids → 1 column */
+  [style*="grid-template-columns: 1fr 1fr 1fr"],
+  [style*="gridTemplateColumns: repeat(3"] {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* 2-column grids → 1 column on small */
+  [style*="grid-template-columns: 1fr 1fr"],
+  [style*="gridTemplateColumns: 1fr 1fr"] {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Tables scroll horizontally */
+  [style*="gridTemplateColumns: 1fr 80px"],
+  [style*="gridTemplateColumns: 100px 1fr"] {
+    overflow-x: auto;
+    font-size: 11px;
+  }
+
+  /* Modals fullscreen on mobile */
+  [style*="maxWidth: 440"],
+  [style*="maxWidth: 480"],
+  [style*="maxWidth: 500"],
+  [style*="maxWidth: 540"] {
+    max-width: 100% !important;
+    border-radius: 16px 16px 0 0 !important;
+    max-height: 85vh !important;
+    position: fixed !important;
+    bottom: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+  }
+
+  /* Fix overlays for mobile sheet style */
+  [style*="alignItems: center"][style*="justifyContent: center"][style*="position: fixed"] {
+    align-items: flex-end !important;
+  }
+
+  /* Reduce content padding */
+  [style*="padding: 28px 32px"] {
+    padding: 16px !important;
+  }
+
+  /* Stats row responsive */
+  [style*="display: grid"][style*="gap: 10"] {
+    gap: 6px !important;
+  }
+
+  /* Button text wrapping */
+  button { white-space: normal !important; }
+
+  /* Canvas height on mobile */
+  [style*="calc(100vh - 240px)"] {
+    height: 300px !important;
+    min-height: 300px !important;
+  }
+
+  /* Flex wrap on filter rows */
+  [style*="display: flex"][style*="gap: 6"] {
+    flex-wrap: wrap !important;
+  }
+}
