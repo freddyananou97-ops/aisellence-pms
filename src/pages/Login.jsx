@@ -1,7 +1,118 @@
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
+import * as THREE from 'three'
 import Logo from '../components/Logo'
 import { loginEmployee } from '../lib/supabase'
 import { ROLES } from '../lib/roles'
+
+function ParticleWave() {
+  const mountRef = useRef(null)
+
+  useEffect(() => {
+    const container = mountRef.current
+    if (!container) return
+
+    const scene = new THREE.Scene()
+    const camera = new THREE.PerspectiveCamera(55, container.clientWidth / container.clientHeight, 0.1, 1000)
+    camera.position.set(0, 12, 28)
+    camera.lookAt(0, 0, 0)
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true })
+    renderer.setSize(container.clientWidth, container.clientHeight)
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
+    renderer.setClearColor(0x000000, 0)
+    container.appendChild(renderer.domElement)
+
+    // Particle grid
+    const cols = 80
+    const rows = 80
+    const spacing = 0.5
+    const count = cols * rows
+    const geometry = new THREE.BufferGeometry()
+    const positions = new Float32Array(count * 3)
+    const basePositions = new Float32Array(count * 3)
+
+    for (let i = 0; i < cols; i++) {
+      for (let j = 0; j < rows; j++) {
+        const idx = (i * rows + j) * 3
+        const x = (i - cols / 2) * spacing
+        const z = (j - rows / 2) * spacing
+        positions[idx] = x
+        positions[idx + 1] = 0
+        positions[idx + 2] = z
+        basePositions[idx] = x
+        basePositions[idx + 1] = 0
+        basePositions[idx + 2] = z
+      }
+    }
+
+    geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3))
+
+    const material = new THREE.PointsMaterial({
+      size: 0.06,
+      color: 0x10b981,
+      transparent: true,
+      opacity: 0.6,
+      sizeAttenuation: true,
+    })
+
+    const points = new THREE.Points(geometry, material)
+    scene.add(points)
+
+    let mouse = { x: 0, y: 0 }
+    const handleMouseMove = (e) => {
+      mouse.x = (e.clientX / window.innerWidth) * 2 - 1
+      mouse.y = -(e.clientY / window.innerHeight) * 2 + 1
+    }
+    window.addEventListener('mousemove', handleMouseMove)
+
+    let animationId
+    const clock = new THREE.Clock()
+
+    const animate = () => {
+      animationId = requestAnimationFrame(animate)
+      const t = clock.getElapsedTime()
+      const pos = geometry.attributes.position.array
+
+      for (let i = 0; i < count; i++) {
+        const idx = i * 3
+        const bx = basePositions[idx]
+        const bz = basePositions[idx + 2]
+        const dist = Math.sqrt(bx * bx + bz * bz)
+        pos[idx + 1] = Math.sin(dist * 0.4 - t * 1.2) * 1.5 +
+                        Math.sin(bx * 0.3 + t * 0.8) * 0.5 +
+                        Math.cos(bz * 0.3 + t * 0.6) * 0.5
+      }
+      geometry.attributes.position.needsUpdate = true
+
+      // Subtle camera sway from mouse
+      camera.position.x = mouse.x * 2
+      camera.position.y = 12 + mouse.y * 1.5
+      camera.lookAt(0, 0, 0)
+
+      renderer.render(scene, camera)
+    }
+    animate()
+
+    const handleResize = () => {
+      camera.aspect = container.clientWidth / container.clientHeight
+      camera.updateProjectionMatrix()
+      renderer.setSize(container.clientWidth, container.clientHeight)
+    }
+    window.addEventListener('resize', handleResize)
+
+    return () => {
+      cancelAnimationFrame(animationId)
+      window.removeEventListener('mousemove', handleMouseMove)
+      window.removeEventListener('resize', handleResize)
+      geometry.dispose()
+      material.dispose()
+      renderer.dispose()
+      if (container.contains(renderer.domElement)) container.removeChild(renderer.domElement)
+    }
+  }, [])
+
+  return <div ref={mountRef} style={{ position: 'absolute', inset: 0, zIndex: 0 }} />
+}
 
 export default function Login({ onLogin }) {
   const [name, setName] = useState('')
@@ -37,11 +148,11 @@ export default function Login({ onLogin }) {
 
       {/* Left Panel — Branding */}
       <div className="login-brand" style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'space-between', padding: '48px', position: 'relative', overflow: 'hidden' }}>
-        {/* Subtle grid pattern */}
-        <div style={{ position: 'absolute', inset: 0, opacity: 0.03, backgroundImage: 'linear-gradient(#fff 1px, transparent 1px), linear-gradient(90deg, #fff 1px, transparent 1px)', backgroundSize: '60px 60px' }} />
+        {/* 3D Particle Wave Background */}
+        <ParticleWave />
 
         {/* Accent line */}
-        <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 1, background: 'linear-gradient(to bottom, transparent, #10b981, transparent)' }} />
+        <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 1, background: 'linear-gradient(to bottom, transparent, #10b981, transparent)', zIndex: 1 }} />
 
         <div style={{ position: 'relative', zIndex: 1 }}>
           <div style={{ marginBottom: 12 }}><Logo /></div>
