@@ -30,6 +30,7 @@ export default function Buchungen() {
   const [checkoutItems, setCheckoutItems] = useState([])
   const [newItemLabel, setNewItemLabel] = useState('')
   const [newItemAmount, setNewItemAmount] = useState('')
+  const [paymentMethod, setPaymentMethod] = useState('card')
   const [showNewBooking, setShowNewBooking] = useState(false)
   const [newBooking, setNewBooking] = useState({ guest_name: '', guest_id: '', room: '', check_in: '', check_out: '', amount_due: '', source: 'Direkt', status: 'reserved', booking_id: '', breakfast_included: false, breakfast_persons: 1 })
   const [guests, setGuests] = useState([])
@@ -140,10 +141,11 @@ export default function Buchungen() {
   }
 
   const finalizeCheckout = async () => {
-    await supabase.from('bookings').update({ status: 'checked_out' }).eq('id', checkoutPreview.id)
+    const pmLabel = paymentMethod === 'card' ? 'Kartenzahlung' : paymentMethod === 'cash' ? 'Barzahlung' : 'Rechnung'
+    await supabase.from('bookings').update({ status: 'checked_out', payment_method: pmLabel, checked_out_at: new Date().toISOString() }).eq('id', checkoutPreview.id)
     const invoiceCharges = checkoutItems.filter(i => i.id !== 'room').map(i => ({ type: i.type, details: i.details, amount: i.amount, date: new Date().toISOString() }))
     openInvoicePDF({ ...checkoutPreview, amount_due: checkoutItems.find(i => i.id === 'room')?.amount || 0 }, invoiceCharges)
-    setCheckoutPreview(null); setCheckoutItems([]); load()
+    setCheckoutPreview(null); setCheckoutItems([]); setPaymentMethod('card'); load()
   }
 
   const doCancel = (booking) => {
@@ -458,11 +460,28 @@ export default function Buchungen() {
                     )}
                   </>
                 })()}
-                {selected.status === 'checked_in' && (
+                {selected.status === 'checked_in' && <>
                   <button onClick={() => doCheckOut(selected)} style={{ ...s.actionBtn, background: '#f59e0b', color: '#000', border: 'none' }}>
                     Auschecken & Rechnung prüfen
                   </button>
-                )}
+                  <button onClick={async () => {
+                    const ch = await loadInvoiceData(selected)
+                    const n = nights(selected.check_in, selected.check_out)
+                    const expiresAt = new Date(Date.now() + 30 * 60 * 1000).toISOString()
+                    await supabase.from('guest_display_sessions').insert({
+                      type: 'invoice', status: 'active', room: selected.room,
+                      guest_name: selected.guest_name, booking_id: selected.booking_id || null,
+                      data: { room_total: parseFloat(selected.amount_due) || 0, nights: n, check_in: selected.check_in, check_out: selected.check_out, items: ch },
+                      created_at: new Date().toISOString(), expires_at: expiresAt,
+                    })
+                    setConfirm({ title: 'Rechnung gesendet', message: `Die Rechnung für ${selected.guest_name} wurde an das Gast-Display gesendet.`, confirmLabel: 'OK', confirmColor: '#10b981', onConfirm: () => setConfirm(null) })
+                  }} style={{ ...s.actionBtn, background: 'rgba(139,92,246,0.08)', color: '#8b5cf6', border: '1px solid rgba(139,92,246,0.2)' }}>
+                    Rechnung an Gast-Display
+                  </button>
+                  <button onClick={async () => { const ch = await loadInvoiceData(selected); openInvoicePDF(selected, ch) }} style={{ ...s.actionBtn, background: 'rgba(59,130,246,0.08)', color: '#3b82f6', border: '1px solid rgba(59,130,246,0.2)' }}>
+                    PDF Rechnung drucken
+                  </button>
+                </>}
                 <button onClick={() => startEdit(selected)} style={s.actionBtn}>
                   Buchung bearbeiten
                 </button>
@@ -701,9 +720,41 @@ export default function Buchungen() {
               </>
             })()}
 
-            <div style={{ display: 'flex', gap: 8 }}>
-              <button onClick={() => setCheckoutPreview(null)} style={{ flex: 1, padding: 12, background: 'var(--bgCard)', border: '1px solid var(--borderLight)', borderRadius: 10, fontSize: 12, color: 'var(--textMuted)', cursor: 'pointer', fontFamily: 'inherit' }}>Abbrechen</button>
-              <button onClick={finalizeCheckout} style={{ flex: 2, padding: 12, background: '#f59e0b', border: 'none', borderRadius: 10, fontSize: 13, fontWeight: 600, color: '#000', cursor: 'pointer', fontFamily: 'inherit' }}>Rechnung erstellen & Gast auschecken</button>
+            {/* Payment Method */}
+            <div style={{ marginBottom: 16 }}>
+              <div style={{ fontSize: 10, color: 'var(--textMuted)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6 }}>Zahlungsart</div>
+              <div style={{ display: 'flex', gap: 6 }}>
+                {[['card', 'Karte'], ['cash', 'Bar'], ['invoice', 'Rechnung']].map(([k, l]) => (
+                  <button key={k} onClick={() => setPaymentMethod(k)} style={{
+                    flex: 1, padding: '10px 0', borderRadius: 8, fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', fontWeight: 500, textAlign: 'center',
+                    background: paymentMethod === k ? 'rgba(16,185,129,0.08)' : 'var(--bgCard)',
+                    color: paymentMethod === k ? '#10b981' : 'var(--textMuted)',
+                    border: `1px solid ${paymentMethod === k ? '#10b981' : 'var(--borderLight)'}`,
+                  }}>{l}</button>
+                ))}
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <button onClick={finalizeCheckout} style={{ width: '100%', padding: 14, background: '#f59e0b', border: 'none', borderRadius: 10, fontSize: 13, fontWeight: 600, color: '#000', cursor: 'pointer', fontFamily: 'inherit' }}>Rechnung erstellen & Gast auschecken</button>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button onClick={async () => {
+                  const n = nights(checkoutPreview.check_in, checkoutPreview.check_out)
+                  const expiresAt = new Date(Date.now() + 30 * 60 * 1000).toISOString()
+                  await supabase.from('guest_display_sessions').insert({
+                    type: 'invoice', status: 'active', room: checkoutPreview.room,
+                    guest_name: checkoutPreview.guest_name, booking_id: checkoutPreview.booking_id || null,
+                    data: { room_total: checkoutItems.find(i => i.id === 'room')?.amount || 0, nights: n, check_in: checkoutPreview.check_in, check_out: checkoutPreview.check_out, items: checkoutItems.filter(i => i.id !== 'room').map(i => ({ type: i.type, details: i.details, amount: i.amount })) },
+                    created_at: new Date().toISOString(), expires_at: expiresAt,
+                  })
+                  setConfirm({ title: 'Rechnung gesendet', message: 'Rechnung wurde an das Gast-Display gesendet.', confirmLabel: 'OK', confirmColor: '#10b981', onConfirm: () => setConfirm(null) })
+                }} style={{ flex: 1, padding: 12, background: 'rgba(139,92,246,0.08)', border: '1px solid rgba(139,92,246,0.2)', borderRadius: 10, fontSize: 11, color: '#8b5cf6', cursor: 'pointer', fontFamily: 'inherit', fontWeight: 500 }}>An Gast-Display</button>
+                <button onClick={() => {
+                  const invoiceCharges = checkoutItems.filter(i => i.id !== 'room').map(i => ({ type: i.type, details: i.details, amount: i.amount, date: new Date().toISOString() }))
+                  openInvoicePDF({ ...checkoutPreview, amount_due: checkoutItems.find(i => i.id === 'room')?.amount || 0 }, invoiceCharges)
+                }} style={{ flex: 1, padding: 12, background: 'rgba(59,130,246,0.08)', border: '1px solid rgba(59,130,246,0.2)', borderRadius: 10, fontSize: 11, color: '#3b82f6', cursor: 'pointer', fontFamily: 'inherit', fontWeight: 500 }}>PDF drucken</button>
+                <button onClick={() => setCheckoutPreview(null)} style={{ flex: 1, padding: 12, background: 'var(--bgCard)', border: '1px solid var(--borderLight)', borderRadius: 10, fontSize: 11, color: 'var(--textMuted)', cursor: 'pointer', fontFamily: 'inherit' }}>Abbrechen</button>
+              </div>
             </div>
           </div>
         </div>

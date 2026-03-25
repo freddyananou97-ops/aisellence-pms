@@ -5,10 +5,12 @@ import { loadInvoiceData, openInvoicePDF } from '../lib/invoice'
 export default function Rechnungen() {
   const [bookings, setBookings] = useState([])
   const [loading, setLoading] = useState(true)
-  const [filter, setFilter] = useState('checked_out')
   const [search, setSearch] = useState('')
   const [selected, setSelected] = useState(null)
   const [charges, setCharges] = useState([])
+  const [dateFilter, setDateFilter] = useState('alle')
+  const [customFrom, setCustomFrom] = useState('')
+  const [customTo, setCustomTo] = useState('')
 
   const load = useCallback(async () => {
     const { data } = await supabase.from('bookings').select('*').order('check_out', { ascending: false })
@@ -26,14 +28,33 @@ export default function Rechnungen() {
     setCharges(ch)
   }
 
-  const filtered = bookings.filter(b => {
+  // Date helpers
+  const todayStr = new Date().toISOString().split('T')[0]
+  const weekAgo = new Date(Date.now() - 7 * 86400000).toISOString().split('T')[0]
+  const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0]
+
+  const getDateRange = () => {
+    if (dateFilter === 'heute') return [todayStr, todayStr]
+    if (dateFilter === 'woche') return [weekAgo, todayStr]
+    if (dateFilter === 'monat') return [monthStart, todayStr]
+    if (dateFilter === 'custom' && customFrom && customTo) return [customFrom, customTo]
+    return [null, null]
+  }
+
+  const [rangeFrom, rangeTo] = getDateRange()
+
+  // Only checked_out bookings for the archive
+  const completed = bookings.filter(b => b.status === 'checked_out')
+
+  const filtered = completed.filter(b => {
     const q = search.toLowerCase()
     const matchSearch = !q || b.guest_name?.toLowerCase().includes(q) || b.room?.includes(q) || b.booking_id?.toLowerCase().includes(q)
-    const matchFilter = filter === 'alle' || b.status === filter
-    return matchSearch && matchFilter
+    const coDate = b.checked_out_at ? b.checked_out_at.split('T')[0] : b.check_out
+    const matchDate = !rangeFrom || (coDate >= rangeFrom && coDate <= rangeTo)
+    return matchSearch && matchDate
   })
 
-  const totalRevenue = bookings.filter(b => b.status === 'checked_out').reduce((s, b) => s + (parseFloat(b.amount_due) || 0), 0)
+  const totalRevenue = filtered.reduce((s, b) => s + (parseFloat(b.amount_due) || 0), 0)
   const openAmount = bookings.filter(b => b.status === 'checked_in').reduce((s, b) => s + (parseFloat(b.amount_due) || 0), 0)
 
   if (loading) return <div style={s.content}><div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '60vh', color: 'var(--textMuted)' }}>Laden...</div></div>
@@ -42,58 +63,69 @@ export default function Rechnungen() {
     <div style={s.content}>
       <div style={{ marginBottom: 16 }}>
         <h1 style={s.h1}>Rechnungen</h1>
-        <p style={{ fontSize: 12, color: 'var(--textMuted)', marginTop: -12 }}>{bookings.filter(b => b.status === 'checked_out').length} abgeschlossene Rechnungen</p>
+        <p style={{ fontSize: 12, color: 'var(--textMuted)', marginTop: -12 }}>{completed.length} abgeschlossene Rechnungen</p>
       </div>
 
       {/* KPIs */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, marginBottom: 16 }}>
         <div style={s.kpi}>
-          <div style={{ fontSize: 10, color: 'var(--textMuted)' }}>Abgeschlossen</div>
-          <div style={{ fontSize: 22, fontWeight: 600, color: '#10b981' }}>{totalRevenue.toLocaleString('de-DE')}€</div>
+          <div style={{ fontSize: 10, color: 'var(--textMuted)' }}>{dateFilter === 'alle' ? 'Gesamt abgeschlossen' : `Umsatz (${dateFilter === 'heute' ? 'heute' : dateFilter === 'woche' ? 'diese Woche' : dateFilter === 'monat' ? 'dieser Monat' : 'Zeitraum'})`}</div>
+          <div style={{ fontSize: 22, fontWeight: 600, color: '#10b981' }}>{totalRevenue.toLocaleString('de-DE', { minimumFractionDigits: 0 })}€</div>
+          <div style={{ fontSize: 10, color: 'var(--textDim)', marginTop: 2 }}>{filtered.length} Rechnungen</div>
         </div>
         <div style={s.kpi}>
           <div style={{ fontSize: 10, color: 'var(--textMuted)' }}>Offen (eingecheckt)</div>
-          <div style={{ fontSize: 22, fontWeight: 600, color: '#f59e0b' }}>{openAmount.toLocaleString('de-DE')}€</div>
+          <div style={{ fontSize: 22, fontWeight: 600, color: '#f59e0b' }}>{openAmount.toLocaleString('de-DE', { minimumFractionDigits: 0 })}€</div>
+          <div style={{ fontSize: 10, color: 'var(--textDim)', marginTop: 2 }}>{bookings.filter(b => b.status === 'checked_in').length} Gäste</div>
         </div>
         <div style={s.kpi}>
-          <div style={{ fontSize: 10, color: 'var(--textMuted)' }}>Gesamt Buchungen</div>
-          <div style={{ fontSize: 22, fontWeight: 600, color: 'var(--text)' }}>{bookings.length}</div>
+          <div style={{ fontSize: 10, color: 'var(--textMuted)' }}>Durchschnitt / Rechnung</div>
+          <div style={{ fontSize: 22, fontWeight: 600, color: 'var(--text)' }}>{filtered.length > 0 ? Math.round(totalRevenue / filtered.length) : 0}€</div>
         </div>
       </div>
 
-      {/* Search + Filter */}
-      <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
+      {/* Search + Date Filter */}
+      <div style={{ display: 'flex', gap: 8, marginBottom: 10, flexWrap: 'wrap' }}>
         <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Gast, Zimmer oder Buchungs-ID..."
           style={{ flex: 1, minWidth: 200, padding: '10px 14px', background: 'var(--bgCard)', border: '1px solid var(--borderLight)', borderRadius: 8, fontSize: 13, color: 'var(--text)', outline: 'none', fontFamily: 'inherit' }} />
-        {[['alle', 'Alle'], ['checked_out', 'Abgeschlossen'], ['checked_in', 'Offen'], ['cancelled', 'Storniert']].map(([k, l]) => (
-          <button key={k} onClick={() => setFilter(k)} style={{
+        {[['alle', 'Alle'], ['heute', 'Heute'], ['woche', 'Woche'], ['monat', 'Monat'], ['custom', 'Zeitraum']].map(([k, l]) => (
+          <button key={k} onClick={() => setDateFilter(k)} style={{
             padding: '8px 14px', borderRadius: 8, fontSize: 11, cursor: 'pointer', fontFamily: 'inherit',
-            background: filter === k ? 'var(--text)' : 'var(--bgCard)', color: filter === k ? 'var(--bg)' : 'var(--textMuted)',
-            border: `1px solid ${filter === k ? 'var(--text)' : 'var(--borderLight)'}`,
+            background: dateFilter === k ? 'var(--text)' : 'var(--bgCard)', color: dateFilter === k ? 'var(--bg)' : 'var(--textMuted)',
+            border: `1px solid ${dateFilter === k ? 'var(--text)' : 'var(--borderLight)'}`,
           }}>{l}</button>
         ))}
       </div>
 
+      {dateFilter === 'custom' && (
+        <div style={{ display: 'flex', gap: 8, marginBottom: 16, alignItems: 'center' }}>
+          <input type="date" value={customFrom} onChange={e => setCustomFrom(e.target.value)} style={{ padding: '8px 12px', background: 'var(--bgCard)', border: '1px solid var(--borderLight)', borderRadius: 8, fontSize: 12, color: 'var(--text)', fontFamily: 'inherit' }} />
+          <span style={{ fontSize: 12, color: 'var(--textDim)' }}>bis</span>
+          <input type="date" value={customTo} onChange={e => setCustomTo(e.target.value)} style={{ padding: '8px 12px', background: 'var(--bgCard)', border: '1px solid var(--borderLight)', borderRadius: 8, fontSize: 12, color: 'var(--text)', fontFamily: 'inherit' }} />
+        </div>
+      )}
+
       {/* Table */}
       <div style={s.card}>
-        <div style={{ display: 'grid', gridTemplateColumns: '100px 1fr 80px 100px 100px 80px 80px', padding: '10px 16px', borderBottom: '1px solid var(--border)', gap: 8 }}>
-          {['Rechnung', 'Gast', 'Zimmer', 'Check-out', 'Nächte', 'Betrag', 'PDF'].map(h => (
+        <div style={{ display: 'grid', gridTemplateColumns: '100px 1fr 60px 90px 60px 70px 80px 60px', padding: '10px 16px', borderBottom: '1px solid var(--border)', gap: 8 }}>
+          {['Rechnung', 'Gast', 'Zi.', 'Check-out', 'Nächte', 'Betrag', 'Zahlung', 'PDF'].map(h => (
             <span key={h} style={{ fontSize: 10, color: 'var(--textDim)', textTransform: 'uppercase', letterSpacing: 0.5, fontWeight: 500 }}>{h}</span>
           ))}
         </div>
         {filtered.length === 0 ? (
-          <div style={{ padding: 24, textAlign: 'center', color: 'var(--textDim)', fontSize: 12 }}>Keine Rechnungen</div>
+          <div style={{ padding: 24, textAlign: 'center', color: 'var(--textDim)', fontSize: 12 }}>Keine Rechnungen im gewählten Zeitraum</div>
         ) : filtered.map(b => {
           const invoiceNr = `RE-${new Date(b.check_out).getFullYear()}-${String(b.booking_id || b.id).slice(-4).toUpperCase()}`
           return (
-            <div key={b.id} style={{ display: 'grid', gridTemplateColumns: '100px 1fr 80px 100px 100px 80px 80px', padding: '12px 16px', borderBottom: '1px solid var(--border)', gap: 8, cursor: 'pointer' }}
+            <div key={b.id} style={{ display: 'grid', gridTemplateColumns: '100px 1fr 60px 90px 60px 70px 80px 60px', padding: '12px 16px', borderBottom: '1px solid var(--border)', gap: 8, cursor: 'pointer' }}
               onClick={() => openDetail(b)}>
               <span style={{ fontSize: 11, color: '#3b82f6', fontWeight: 500 }}>{invoiceNr}</span>
               <span style={{ fontSize: 12, color: 'var(--text)' }}>{b.guest_name}</span>
               <span style={{ fontSize: 12, color: 'var(--textSec)' }}>{b.room}</span>
               <span style={{ fontSize: 12, color: 'var(--textSec)' }}>{b.check_out}</span>
-              <span style={{ fontSize: 12, color: 'var(--textMuted)' }}>{nights(b.check_in, b.check_out)} Nächte</span>
+              <span style={{ fontSize: 12, color: 'var(--textMuted)' }}>{nights(b.check_in, b.check_out)}</span>
               <span style={{ fontSize: 12, color: 'var(--text)', fontWeight: 500 }}>{parseFloat(b.amount_due || 0).toFixed(0)}€</span>
+              <span style={{ fontSize: 9, color: 'var(--textDim)' }}>{b.payment_method || '—'}</span>
               <button onClick={async (e) => { e.stopPropagation(); const ch = await loadInvoiceData(b); openInvoicePDF(b, ch) }} style={{ padding: '4px 10px', background: 'rgba(59,130,246,0.08)', border: '1px solid rgba(59,130,246,0.2)', borderRadius: 6, fontSize: 10, color: '#3b82f6', cursor: 'pointer', fontFamily: 'inherit', fontWeight: 500 }}>PDF</button>
             </div>
           )
@@ -119,6 +151,7 @@ export default function Rechnungen() {
               ['Check-out', selected.check_out],
               ['Nächte', nights(selected.check_in, selected.check_out)],
               ['Quelle', selected.source || 'Direkt'],
+              ['Zahlungsart', selected.payment_method || '—'],
               ['Buchungs-ID', selected.booking_id || '—'],
             ].map(([l, v], i) => (
               <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid var(--border)' }}>
@@ -137,7 +170,7 @@ export default function Rechnungen() {
               {charges.map((c, i) => (
                 <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid var(--border)' }}>
                   <div>
-                    <span style={{ fontSize: 9, padding: '2px 6px', borderRadius: 4, marginRight: 6, background: c.type === 'Room Service' ? 'rgba(245,158,11,0.08)' : 'rgba(139,92,246,0.08)', color: c.type === 'Room Service' ? '#f59e0b' : '#8b5cf6' }}>{c.type}</span>
+                    <span style={{ fontSize: 9, padding: '2px 6px', borderRadius: 4, marginRight: 6, background: c.type === 'Room Service' ? 'rgba(245,158,11,0.08)' : c.type === 'Minibar' ? 'rgba(139,92,246,0.08)' : 'rgba(59,130,246,0.08)', color: c.type === 'Room Service' ? '#f59e0b' : c.type === 'Minibar' ? '#8b5cf6' : '#3b82f6' }}>{c.type}</span>
                     <span style={{ fontSize: 11, color: 'var(--textSec)' }}>{c.details}</span>
                   </div>
                   <span style={{ fontSize: 12, color: 'var(--text)', fontWeight: 500 }}>{c.amount.toFixed(2)}€</span>
@@ -149,17 +182,21 @@ export default function Rechnungen() {
                 const roomTotal = parseFloat(selected.amount_due || 0)
                 const chargesTotal = charges.reduce((s, c) => s + c.amount, 0)
                 const grand = roomTotal + chargesTotal
+                const netto7 = roomTotal / 1.07; const mwst7 = roomTotal - netto7
+                const netto19 = chargesTotal / 1.19; const mwst19 = chargesTotal - netto19
                 return <>
                   <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 0', borderTop: '2px solid var(--border)', marginTop: 4, fontWeight: 600 }}>
                     <span style={{ fontSize: 14, color: 'var(--text)' }}>Gesamtbetrag</span>
                     <span style={{ fontSize: 16, color: '#10b981' }}>{grand.toFixed(2)}€</span>
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', padding: '2px 0', fontSize: 10, color: 'var(--textDim)' }}>
-                    <span>Netto (7% MwSt)</span><span>{(grand / 1.07).toFixed(2)}€</span>
+                    <span>Übernachtung netto (7% MwSt: {mwst7.toFixed(2)}€)</span><span>{netto7.toFixed(2)}€</span>
                   </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', padding: '2px 0', fontSize: 10, color: 'var(--textDim)' }}>
-                    <span>MwSt 7%</span><span>{(grand - grand / 1.07).toFixed(2)}€</span>
-                  </div>
+                  {chargesTotal > 0 && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', padding: '2px 0', fontSize: 10, color: 'var(--textDim)' }}>
+                      <span>Services netto (19% MwSt: {mwst19.toFixed(2)}€)</span><span>{netto19.toFixed(2)}€</span>
+                    </div>
+                  )}
                 </>
               })()}
             </div>
