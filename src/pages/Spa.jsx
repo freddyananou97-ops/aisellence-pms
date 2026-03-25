@@ -218,9 +218,7 @@ export default function Spa() {
         </div>
         <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
           <button onClick={prevDay} style={st.navBtn}>←</button>
-          <span style={{ fontSize: 12, color: 'var(--text)', fontWeight: 500, minWidth: 120, textAlign: 'center' }}>
-            {new Date(date + 'T00:00').toLocaleDateString('de-DE', { weekday: 'short', day: 'numeric', month: 'short' })}
-          </span>
+          <input type="date" value={date} onChange={e => setDate(e.target.value)} style={{ padding: '5px 10px', background: 'var(--bgCard)', border: '1px solid var(--borderLight)', borderRadius: 8, fontSize: 11, color: 'var(--text)', fontFamily: 'inherit' }} />
           <button onClick={() => setDate(todayStr)} style={{ padding: '5px 10px', borderRadius: 6, fontSize: 10, cursor: 'pointer', fontFamily: 'inherit', background: date === todayStr ? 'var(--text)' : 'var(--bgCard)', color: date === todayStr ? 'var(--bg)' : 'var(--textMuted)', border: `1px solid ${date === todayStr ? 'var(--text)' : 'var(--borderLight)'}` }}>Heute</button>
           <button onClick={nextDay} style={st.navBtn}>→</button>
         </div>
