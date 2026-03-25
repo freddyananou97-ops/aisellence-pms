@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { useTheme } from '../lib/theme.jsx'
 import { ROLES } from '../lib/roles'
-import { HOTEL } from '../lib/hotel'
+import { HOTEL, saveHotelSetting, loadHotelSettings } from '../lib/hotel'
 import ConfirmDialog from '../components/ConfirmDialog'
 
 const S = {
@@ -93,17 +93,7 @@ export default function Settings() {
       </div>}
 
       {/* HOTEL-STAMMDATEN */}
-      {tab === 'hotel' && <div style={{ maxWidth: 600 }}>
-        <div style={S.card}>
-          <div style={{ padding: '10px 0 16px', fontSize: 11, color: 'var(--textMuted,#888)', lineHeight: 1.5 }}>
-            Hotel-Stammdaten werden in <code style={{ background: 'var(--border)', padding: '2px 6px', borderRadius: 4, fontSize: 10 }}>src/lib/hotel.js</code> konfiguriert und auf Rechnungen, Bons und im Gast-Display angezeigt.
-          </div>
-          {[['Hotelname', HOTEL.name],['Adresse', HOTEL.street],['PLZ', HOTEL.zip],['Stadt', HOTEL.city],['Telefon', HOTEL.phone],['Email', HOTEL.email],['USt-IdNr.', HOTEL.taxId],['IBAN', HOTEL.iban],['BIC', HOTEL.bic]].map(([l,v],i) => (
-            <div key={i}><label style={S.label}>{l}</label><input style={{ ...S.input, opacity: 0.7 }} value={v} readOnly /></div>
-          ))}
-          <p style={{ fontSize: 10, color: 'var(--textDim,#444)', marginTop: 4 }}>Änderungen an Hotel-Stammdaten werden in der Konfigurationsdatei vorgenommen.</p>
-        </div>
-      </div>}
+      {tab === 'hotel' && <HotelSettingsTab />}
 
       {/* DARSTELLUNG */}
       {tab === 'darstellung' && <div style={{ maxWidth: 600 }}>
@@ -212,6 +202,47 @@ export default function Settings() {
       </div>}
 
       {confirm && <ConfirmDialog {...confirm} onCancel={() => setConfirm(null)} />}
+    </div>
+  )
+}
+
+function HotelSettingsTab() {
+  const fields = [['name','Hotelname'],['street','Adresse'],['zip','PLZ'],['city','Stadt'],['phone','Telefon'],['email','Email'],['taxId','USt-IdNr.'],['iban','IBAN'],['bic','BIC']]
+  const [form, setForm] = useState({})
+  const [saving, setSaving] = useState(false)
+  const [saved, setSaved] = useState(false)
+
+  useEffect(() => {
+    loadHotelSettings().then(() => {
+      const f = {}; fields.forEach(([k]) => { f[k] = HOTEL[k] || '' }); setForm(f)
+    })
+  }, [])
+
+  const handleSave = async () => {
+    setSaving(true); setSaved(false)
+    for (const [key] of fields) {
+      if (form[key] !== HOTEL[key]) await saveHotelSetting(key, form[key])
+    }
+    setSaving(false); setSaved(true)
+    setTimeout(() => setSaved(false), 3000)
+  }
+
+  return (
+    <div style={{ maxWidth: 600 }}>
+      <div style={S.card}>
+        <div style={{ fontSize: 11, color: 'var(--textMuted,#888)', marginBottom: 16, lineHeight: 1.5 }}>
+          Diese Daten erscheinen auf Rechnungen, Bons und dem Gast-Display.
+        </div>
+        {fields.map(([key, label]) => (
+          <div key={key}><label style={S.label}>{label}</label><input style={S.input} value={form[key] || ''} onChange={e => setForm(p => ({ ...p, [key]: e.target.value }))} /></div>
+        ))}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <button onClick={handleSave} disabled={saving} style={{ padding: '12px 24px', background: 'var(--text,#fff)', color: 'var(--bg,#080808)', border: 'none', borderRadius: 10, fontSize: 13, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit', opacity: saving ? 0.6 : 1 }}>
+            {saving ? 'Speichern...' : 'Speichern'}
+          </button>
+          {saved && <span style={{ fontSize: 12, color: '#10b981', fontWeight: 500 }}>Gespeichert</span>}
+        </div>
+      </div>
     </div>
   )
 }

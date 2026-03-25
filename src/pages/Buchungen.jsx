@@ -1,5 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
+import useModalClose from '../hooks/useModalClose'
 import { supabase, subscribeToTable } from '../lib/supabase'
+import { SkeletonTable } from '../components/LoadingSkeleton'
 import { loadInvoiceData, openInvoicePDF } from '../lib/invoice'
 import { prepareCheckoutItems, finalizeCheckout as doFinalizeCheckout } from '../lib/checkout'
 import ConfirmDialog from '../components/ConfirmDialog'
@@ -56,6 +58,10 @@ export default function Buchungen() {
   }, [])
 
   const hasMeldeschein = (bookingId) => bookingId && regForms.some(f => f.booking_id === bookingId && f.status === 'completed')
+
+  useModalClose(!!selected, () => { setSelected(null); setEditing(false) })
+  useModalClose(!!showNewBooking, () => setShowNewBooking(false))
+  useModalClose(!!checkoutPreview, () => setCheckoutPreview(null))
 
   useEffect(() => {
     load()
@@ -222,7 +228,7 @@ export default function Buchungen() {
 
   const getBookingStart = (booking, date) => booking.check_in === date
 
-  if (loading) return <div style={s.content}><div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '60vh', color: 'var(--textMuted)' }}>Laden...</div></div>
+  if (loading) return <div style={s.content}><SkeletonTable rows={6} cols={7} /></div>
 
   return (
     <div style={s.content}>

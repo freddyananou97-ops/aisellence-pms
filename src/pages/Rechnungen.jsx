@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { supabase, subscribeToTable } from '../lib/supabase'
+import useModalClose from '../hooks/useModalClose'
 import { loadInvoiceData, openInvoicePDF } from '../lib/invoice'
 
 export default function Rechnungen() {
@@ -12,6 +13,8 @@ export default function Rechnungen() {
   const [customFrom, setCustomFrom] = useState('')
   const [customTo, setCustomTo] = useState('')
   const [visibleCount, setVisibleCount] = useState(50)
+
+  useModalClose(!!selected, () => setSelected(null))
 
   const load = useCallback(async () => {
     const { data } = await supabase.from('bookings').select('*').order('check_out', { ascending: false })

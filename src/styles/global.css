@@ -67,6 +67,11 @@ a { text-decoration: none; color: inherit; }
 .fade-in { animation: fadeIn 0.3s ease-out; }
 .pulse { animation: pulse 2s ease-in-out infinite; }
 
+@keyframes skeleton-pulse {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 0.15; }
+}
+
 /* ====== RESPONSIVE STYLES ====== */
 @media (max-width: 768px) {
   /* Grids collapse to 1-2 columns */

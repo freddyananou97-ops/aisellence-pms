@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { supabase, subscribeToTable } from '../lib/supabase'
+import useModalClose from '../hooks/useModalClose'
 
 const LANG_FLAGS = { german: '🇩🇪', english: '🇬🇧', french: '🇫🇷', italian: '🇮🇹', spanish: '🇪🇸', turkish: '🇹🇷', arabic: '🇸🇦', russian: '🇷🇺', chinese: '🇨🇳', japanese: '🇯🇵' }
 
@@ -11,6 +12,8 @@ export default function Gaeste() {
   const [filter, setFilter] = useState('alle')
   const [selected, setSelected] = useState(null)
   const [visibleCount, setVisibleCount] = useState(50)
+
+  useModalClose(!!selected, () => { setSelected(null); setEditing(false) })
   const [editing, setEditing] = useState(false)
   const [editData, setEditData] = useState({})
   const [guestBookings, setGuestBookings] = useState([])

@@ -3,6 +3,7 @@ import { useDashboardData } from '../hooks/useRealtime'
 import { fetchBookings, fetchShiftLogs, fetchComplaints, fetchMaintenance, fetchAllOpenRequests, fetchRevenueInsights, fetchEvents, fetchHousekeeping, supabase } from '../lib/supabase'
 import { useNotifications } from '../hooks/useNotifications'
 import { useTier } from '../lib/tier.jsx'
+import LoadingSkeleton from '../components/LoadingSkeleton'
 import ConfirmDialog from '../components/ConfirmDialog'
 
 export default function Dashboard({ user }) {
@@ -117,7 +118,7 @@ export default function Dashboard({ user }) {
 
   const getAge = (created) => Math.round((Date.now() - new Date(created).getTime()) / 60000)
 
-  if (loading) return <div style={s.content}><div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '60vh' }}><div className="pulse" style={{ color: 'var(--text-muted)', fontSize: 14 }}>Dashboard laden...</div></div></div>
+  if (loading) return <div style={s.content}><LoadingSkeleton count={6} /><div style={{ marginTop: 16 }}><LoadingSkeleton type="table" rows={4} cols={4} /></div></div>
 
   return (
     <div style={s.content} className="fade-in">

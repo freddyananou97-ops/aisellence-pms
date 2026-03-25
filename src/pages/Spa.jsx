@@ -1,5 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { supabase, fetchSpaTreatments, fetchSpaBookings, subscribeToTable } from '../lib/supabase'
+import useModalClose from '../hooks/useModalClose'
+import { SkeletonTable } from '../components/LoadingSkeleton'
 import ConfirmDialog from '../components/ConfirmDialog'
 import SignatureCanvas from '../components/SignatureCanvas'
 
@@ -35,6 +37,10 @@ export default function Spa() {
   const [listTo, setListTo] = useState('')
 
   const todayStr = new Date().toISOString().split('T')[0]
+
+  useModalClose(!!selected, () => setSelected(null))
+  useModalClose(!!showBook, () => setShowBook(null))
+  useModalClose(!!chargeSign, () => setChargeSign(null))
 
   const load = useCallback(async () => {
     try {
@@ -153,7 +159,7 @@ export default function Spa() {
   weekStartD.setDate(weekStartD.getDate() - ((weekStartD.getDay() + 6) % 7)) // Monday
   const weekDays = Array.from({ length: 7 }, (_, i) => { const d = new Date(weekStartD); d.setDate(d.getDate() + i); return d.toISOString().split('T')[0] })
 
-  if (loading) return <div style={st.content}><div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '60vh', color: 'var(--textMuted)' }}>Laden...</div></div>
+  if (loading) return <div style={st.content}><SkeletonTable rows={8} cols={5} /></div>
 
   return (
     <div style={st.content}>

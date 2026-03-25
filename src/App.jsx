@@ -3,6 +3,7 @@ import { ThemeProvider, useTheme } from './lib/theme'
 import { TierProvider, useTier } from './lib/tier'
 import { getAllowedModules, getDefaultRoute } from './lib/roles'
 
+import { loadHotelSettings } from './lib/hotel'
 import ErrorBoundary from './components/ErrorBoundary'
 import Sidebar from './components/Sidebar'
 const Login = lazy(() => import('./pages/Login'))
@@ -55,8 +56,9 @@ function AppContent() {
   const { theme, resolvedTheme } = useTheme()
   const { tier, setTier } = useTier()
 
-  // Restore tier from session
+  // Restore tier from session + load hotel settings
   useEffect(() => {
+    loadHotelSettings()
     if (user?.tier) setTier(user.tier)
     if (user) { setShowLogin(false); setDashboardReady(true) }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
