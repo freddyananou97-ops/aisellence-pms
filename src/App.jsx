@@ -37,7 +37,11 @@ function AppContent() {
   }
 
   // Guest Display: no auth, no sidebar, standalone route
-  if (window.location.hash === '#/guest-display' || page === '/guest-display') return <GuestDisplay />
+  // Supports /guest-display, /#/guest-display, and ?page=guest-display
+  const isGuestDisplay = window.location.pathname === '/guest-display'
+    || window.location.hash === '#/guest-display'
+    || new URLSearchParams(window.location.search).get('page') === 'guest-display'
+  if (isGuestDisplay) return <GuestDisplay />
 
   if (!user) return <Login onLogin={handleLogin} />
 
