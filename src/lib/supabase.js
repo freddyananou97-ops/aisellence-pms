@@ -79,6 +79,12 @@ export async function fetchEvents(daysAhead = 7) {
   return data || []
 }
 
+export async function insertEvents(events) {
+  const { data, error } = await supabase.from('events_calendar').insert(events)
+  if (error) console.error('insertEvents:', error)
+  return { data, error }
+}
+
 // ============================================================
 // FEEDBACK
 // ============================================================

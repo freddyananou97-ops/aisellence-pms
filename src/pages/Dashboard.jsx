@@ -51,9 +51,12 @@ export default function Dashboard({ user }) {
   const dCO = checkOutsToday
   const dLogs = logs
   const dEvents = events.length > 0 ? events : [
-    { start_date: '2026-03-23', event_name: 'FC Ingolstadt vs. TSV 1860', event_type: 'fussball' },
-    { start_date: '2026-03-25', event_name: 'Audi Zulieferer-Konferenz', event_type: 'messe' },
-    { start_date: '2026-03-28', event_name: 'Ingolstädter Frühjahrsmesse', event_type: 'volksfest' },
+    { start_date: '2026-03-23', event_name: 'FC Ingolstadt vs. TSV 1860', event_type: 'fussball', impact_level: 'high' },
+    { start_date: '2026-03-25', event_name: 'Audi Zulieferer-Konferenz', event_type: 'messe', impact_level: 'medium' },
+    { start_date: '2026-03-27', event_name: 'ERC Ingolstadt Playoff Heim vs München', event_type: 'eishockey', impact_level: 'high' },
+    { start_date: '2026-03-28', event_name: 'ABBA Concert Theater', event_type: 'konzert', impact_level: 'medium' },
+    { start_date: '2026-03-28', event_name: 'Ingolstädter Frühjahrsmesse', event_type: 'volksfest', impact_level: 'low' },
+    { start_date: '2026-03-29', event_name: 'ERC Ingolstadt Playoff Heim vs München', event_type: 'eishockey', impact_level: 'high' },
   ]
   const dComp = (revenueData?.competitor_prices ? (typeof revenueData.competitor_prices === 'string' ? JSON.parse(revenueData.competitor_prices) : revenueData.competitor_prices) : []).length > 0
     ? (typeof revenueData.competitor_prices === 'string' ? JSON.parse(revenueData.competitor_prices) : revenueData.competitor_prices)
@@ -255,13 +258,30 @@ export default function Dashboard({ user }) {
 
       {/* Row 4: Events + Weather */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 16 }}>
-        <Card title="Events diese Woche">
-          {dEvents.slice(0, 4).map((ev, i) => (
-            <Row key={i} style={{ gap: 12 }}>
-              <div style={s.eventDate}>{new Date(ev.start_date).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' })}</div>
-              <div><div style={{ fontSize: 11, color: 'var(--textSec)' }}>{ev.event_name}</div><div style={{ fontSize: 9, color: 'var(--text-muted)' }}>{ev.event_type}</div></div>
-            </Row>
-          ))}
+        <Card title="Events diese Woche" extra={`${dEvents.length}`}>
+          {dEvents.slice(0, 6).map((ev, i) => {
+            const impactColor = ev.impact_level === 'high' ? '#ef4444' : ev.impact_level === 'medium' ? '#3b82f6' : '#555'
+            const isMultiDay = ev.end_date && ev.end_date !== ev.start_date
+            return (
+              <Row key={i} style={{ gap: 10 }}>
+                <div style={{ width: 3, borderRadius: 2, alignSelf: 'stretch', flexShrink: 0, background: impactColor }} />
+                <div style={{ ...s.eventDate, minWidth: 44 }}>
+                  {new Date(ev.start_date).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' })}
+                  {isMultiDay && <div style={{ fontSize: 8, color: 'var(--textDim)', marginTop: 1 }}>– {new Date(ev.end_date).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' })}</div>}
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+                  <EventTypeIcon type={ev.event_type} />
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 11, color: 'var(--textSec)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{ev.event_name}</div>
+                  <div style={{ fontSize: 9, color: 'var(--textDim)', display: 'flex', alignItems: 'center', gap: 4, marginTop: 1 }}>
+                    {ev.event_type}
+                    {ev.impact_level && <span style={{ fontSize: 8, color: impactColor, background: `${impactColor}12`, padding: '1px 5px', borderRadius: 3, fontWeight: 600, textTransform: 'uppercase' }}>{ev.impact_level}</span>}
+                  </div>
+                </div>
+              </Row>
+            )
+          })}
         </Card>
         <Card title="Wetter Ingolstadt" extra="7 Tage">
           <div style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '12px 16px', borderBottom: '1px solid var(--border)' }}>
@@ -379,6 +399,19 @@ function Card({ title, count, extra, children }) {
 function Row({ children, style: x }) { return <div style={{ ...s.row, ...x }}>{children}</div> }
 function Prio({ c }) { return <div style={{ width: 3, borderRadius: 2, alignSelf: 'stretch', flexShrink: 0, background: c }} /> }
 function Dot({ c, l }) { return <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}><div style={{ width: 8, height: 8, borderRadius: '50%', background: c }} /><span style={{ fontSize: 9, color: 'var(--textDim)' }}>{l}</span></div> }
+
+function EventTypeIcon({ type }) {
+  const p = { width: 14, height: 14, viewBox: '0 0 24 24', fill: 'none', strokeWidth: '1.5', strokeLinecap: 'round', strokeLinejoin: 'round' }
+  const c = 'var(--textDim)'
+  switch (type) {
+    case 'fussball': return <svg {...p} stroke={c}><circle cx="12" cy="12" r="10"/><path d="M12 2l3 7h-6l3-7m-7.66 15l5-4.5-1.5-6.5m15.32 0l-6.5 1.5-4.5 5"/></svg>
+    case 'eishockey': return <svg {...p} stroke={c}><path d="M4 20l8-8 8 8"/><circle cx="12" cy="8" r="4"/></svg>
+    case 'konzert': return <svg {...p} stroke={c}><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
+    case 'messe': return <svg {...p} stroke={c}><path d="M3 21h18M5 21V7l7-4 7 4v14"/><path d="M9 21v-4h6v4"/></svg>
+    case 'volksfest': return <svg {...p} stroke={c}><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg>
+    default: return <svg {...p} stroke={c}><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+  }
+}
 
 const s = {
   content: { padding: '28px 32px', maxWidth: 1280 },
