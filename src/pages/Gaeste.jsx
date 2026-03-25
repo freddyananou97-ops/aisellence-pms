@@ -10,6 +10,7 @@ export default function Gaeste() {
   const [search, setSearch] = useState('')
   const [filter, setFilter] = useState('alle')
   const [selected, setSelected] = useState(null)
+  const [visibleCount, setVisibleCount] = useState(50)
   const [editing, setEditing] = useState(false)
   const [editData, setEditData] = useState({})
   const [guestBookings, setGuestBookings] = useState([])
@@ -106,7 +107,7 @@ export default function Gaeste() {
         </div>
         {filtered.length === 0 ? (
           <div style={{ padding: 24, textAlign: 'center', color: 'var(--textDim)', fontSize: 12 }}>{search ? 'Kein Gast gefunden' : 'Keine Gäste'}</div>
-        ) : filtered.map(g => (
+        ) : filtered.slice(0, visibleCount).map(g => (
           <div key={g.id} onClick={() => openGuest(g)} style={{
             display: 'grid', gridTemplateColumns: '1fr 1fr 140px 80px 80px 60px', padding: '12px 16px',
             borderBottom: '1px solid var(--border)', gap: 8, cursor: 'pointer',
@@ -124,6 +125,11 @@ export default function Gaeste() {
             <span style={{ fontSize: 12, color: g.total_spent > 0 ? '#10b981' : 'var(--textDim)' }}>{g.total_spent ? `${parseFloat(g.total_spent).toFixed(0)}€` : '—'}</span>
           </div>
         ))}
+        {filtered.length > visibleCount && (
+          <button onClick={() => setVisibleCount(v => v + 50)} style={{ width: '100%', padding: 12, background: 'transparent', border: 'none', borderTop: '1px solid var(--border)', fontSize: 12, color: 'var(--textMuted)', cursor: 'pointer', fontFamily: 'inherit' }}>
+            Mehr laden ({visibleCount} von {filtered.length} angezeigt)
+          </button>
+        )}
       </div>
 
       {/* Detail Panel */}

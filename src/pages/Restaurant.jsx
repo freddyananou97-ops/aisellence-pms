@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase, fetchRestaurantTables, fetchRestaurantReservations, subscribeToTable } from '../lib/supabase'
 import { createCheckoutSession } from '../lib/stripe'
+import { HOTEL, HOTEL_ADDRESS } from '../lib/hotel'
 import QRCode from '../components/QRCode'
 import ConfirmDialog from '../components/ConfirmDialog'
 
@@ -232,7 +233,7 @@ export default function Restaurant() {
     const mwst = (receipt.total - receipt.total / 1.19).toFixed(2)
     const items = receipt.items.map(o => `<tr><td>${o.quantity || 1}x ${o.product_name}</td><td style="text-align:right">${(o.product_price * (o.quantity || 1)).toFixed(2)}€</td></tr>`).join('')
     const w = window.open('', '_blank', 'width=320,height=600')
-    w.document.write(`<html><head><title>Bon</title><style>*{margin:0;font-family:monospace;font-size:12px}body{padding:16px;width:280px}h2{font-size:14px;text-align:center;margin-bottom:4px}p{text-align:center;font-size:10px;color:#666}hr{border:none;border-top:1px dashed #ccc;margin:8px 0}table{width:100%}td{padding:2px 0}.t{font-weight:bold;font-size:14px;border-top:1px solid #000;padding-top:6px;margin-top:4px}</style></head><body><h2>Maritim Hotel Ingolstadt</h2><p>Am Congress Centrum 1 · 85049 Ingolstadt</p><p>Tel: +49 841 49050</p><hr><p style="color:#000">${new Date().toLocaleDateString('de-DE')} ${new Date().toLocaleTimeString('de-DE')} · Tisch ${receipt.table}</p><hr><table>${items}</table><hr><table><tr class="t"><td>Gesamt</td><td style="text-align:right">${receipt.total.toFixed(2)}€</td></tr><tr><td style="font-size:10px;color:#666">Netto</td><td style="text-align:right;font-size:10px;color:#666">${netto}€</td></tr><tr><td style="font-size:10px;color:#666">MwSt 19%</td><td style="text-align:right;font-size:10px;color:#666">${mwst}€</td></tr></table><hr><p style="color:#000">Zahlungsart: ${receipt.method}</p><hr><p>USt-IdNr: DE 123 456 789</p><p style="margin-top:8px">Vielen Dank für Ihren Besuch!</p><script>setTimeout(()=>window.print(),300)</script></body></html>`)
+    w.document.write(`<html><head><title>Bon</title><style>*{margin:0;font-family:monospace;font-size:12px}body{padding:16px;width:280px}h2{font-size:14px;text-align:center;margin-bottom:4px}p{text-align:center;font-size:10px;color:#666}hr{border:none;border-top:1px dashed #ccc;margin:8px 0}table{width:100%}td{padding:2px 0}.t{font-weight:bold;font-size:14px;border-top:1px solid #000;padding-top:6px;margin-top:4px}</style></head><body><h2>${HOTEL.name}</h2><p>${HOTEL_ADDRESS}</p><p>Tel: ${HOTEL.phone}</p><hr><p style="color:#000">${new Date().toLocaleDateString('de-DE')} ${new Date().toLocaleTimeString('de-DE')} · Tisch ${receipt.table}</p><hr><table>${items}</table><hr><table><tr class="t"><td>Gesamt</td><td style="text-align:right">${receipt.total.toFixed(2)}€</td></tr><tr><td style="font-size:10px;color:#666">Netto</td><td style="text-align:right;font-size:10px;color:#666">${netto}€</td></tr><tr><td style="font-size:10px;color:#666">MwSt 19%</td><td style="text-align:right;font-size:10px;color:#666">${mwst}€</td></tr></table><hr><p style="color:#000">Zahlungsart: ${receipt.method}</p><hr><p>USt-IdNr: ${HOTEL.taxId}</p><p style="margin-top:8px">Vielen Dank für Ihren Besuch!</p><script>setTimeout(()=>window.print(),300)</script></body></html>`)
   }
 
   return (

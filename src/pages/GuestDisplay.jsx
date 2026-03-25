@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { createCheckoutSession, buildLineItems } from '../lib/stripe'
+import { HOTEL, HOTEL_ADDRESS } from '../lib/hotel'
 import QRCode from '../components/QRCode'
 import SignatureCanvas from '../components/SignatureCanvas'
 
@@ -141,8 +142,8 @@ function WelcomeScreen() {
         <svg width={44} height={44} viewBox="0 0 44 44"><rect x="2" y="2" width="40" height="40" rx="10" fill="none" stroke="#1a1a1a" strokeWidth="1.5"/><path d="M12 32L22 12L32 32" fill="none" stroke="#1a1a1a" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/><line x1="16" y1="24" x2="28" y2="24" stroke="#1a1a1a" strokeWidth="2" strokeLinecap="round"/></svg>
         <span style={{ fontSize: 24, fontWeight: 300, color: '#1a1a1a', letterSpacing: 1 }}>Isellence</span>
       </div>
-      <h1 style={{ fontSize: 32, fontWeight: 300, color: '#1a1a1a', margin: '0 0 8px', textAlign: 'center', letterSpacing: -0.5 }}>Willkommen im Maritim Hotel Ingolstadt</h1>
-      <p style={{ fontSize: 16, color: '#6b7280', margin: 0, textAlign: 'center' }}>Am Congress Centrum 1 · 85049 Ingolstadt</p>
+      <h1 style={{ fontSize: 32, fontWeight: 300, color: '#1a1a1a', margin: '0 0 8px', textAlign: 'center', letterSpacing: -0.5 }}>{`Willkommen im ${HOTEL.name}`}</h1>
+      <p style={{ fontSize: 16, color: '#6b7280', margin: 0, textAlign: 'center' }}>{HOTEL_ADDRESS}</p>
       <div style={{ marginTop: 48, textAlign: 'center' }}>
         <div style={{ fontSize: 48, fontWeight: 200, color: '#1a1a1a', letterSpacing: 2 }}>{clock.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}</div>
         <div style={{ fontSize: 14, color: '#9ca3af', marginTop: 4 }}>{clock.toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</div>
@@ -430,8 +431,8 @@ function InvoiceView({ session, onComplete }) {
         <div style={{ maxWidth: 640, margin: '0 auto' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 32 }}>
             <div>
-              <div style={{ fontSize: 20, fontWeight: 600, color: '#1a1a1a' }}>Maritim Hotel Ingolstadt</div>
-              <div style={{ fontSize: 11, color: '#6b7280', lineHeight: 1.6, marginTop: 4 }}>Am Congress Centrum 1 · 85049 Ingolstadt<br/>Tel: +49 841 49050</div>
+              <div style={{ fontSize: 20, fontWeight: 600, color: '#1a1a1a' }}>{HOTEL.name}</div>
+              <div style={{ fontSize: 11, color: '#6b7280', lineHeight: 1.6, marginTop: 4 }}>{HOTEL_ADDRESS}<br/>Tel: {HOTEL.phone}</div>
             </div>
             <div style={{ textAlign: 'right' }}>
               <div style={{ fontSize: 22, fontWeight: 300, color: '#1a1a1a' }}>Rechnung</div>

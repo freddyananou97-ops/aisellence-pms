@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase, subscribeToTable } from '../lib/supabase'
 import { loadInvoiceData, openInvoicePDF } from '../lib/invoice'
+import { prepareCheckoutItems, finalizeCheckout as doFinalizeCheckout } from '../lib/checkout'
 import ConfirmDialog from '../components/ConfirmDialog'
 
 const STATUS_CONF = {
@@ -114,13 +115,8 @@ export default function Buchungen() {
   }
 
   const doCheckOut = async (booking) => {
-    const ch = await loadInvoiceData(booking)
-    const roomTotal = parseFloat(booking.amount_due) || 0
-    const n = Math.max(1, Math.round((new Date(booking.check_out) - new Date(booking.check_in)) / 86400000))
-    setCheckoutItems([
-      { id: 'room', type: 'Übernachtung', details: `${n} Nächte · Zimmer ${booking.room}`, amount: roomTotal, locked: false },
-      ...ch.map((c, i) => ({ id: `ch-${i}`, type: c.type, details: c.details, amount: c.amount, locked: false })),
-    ])
+    const items = await prepareCheckoutItems(booking)
+    setCheckoutItems(items)
     setCheckoutPreview(booking)
     setSelected(null)
     setNewItemLabel(''); setNewItemAmount('')
@@ -130,21 +126,16 @@ export default function Buchungen() {
     setCheckoutItems(prev => prev.map(item => item.id === id ? { ...item, [field]: field === 'amount' ? parseFloat(value) || 0 : value } : item))
   }
 
-  const removeCheckoutItem = (id) => {
-    setCheckoutItems(prev => prev.filter(item => item.id !== id))
-  }
+  const removeCheckoutItem = (id) => setCheckoutItems(prev => prev.filter(item => item.id !== id))
 
   const addCheckoutItem = () => {
     if (!newItemLabel) return
-    setCheckoutItems(prev => [...prev, { id: `new-${Date.now()}`, type: 'Sonstige', details: newItemLabel, amount: parseFloat(newItemAmount) || 0, locked: false }])
+    setCheckoutItems(prev => [...prev, { id: `new-${Date.now()}`, type: 'Sonstige', details: newItemLabel, amount: parseFloat(newItemAmount) || 0 }])
     setNewItemLabel(''); setNewItemAmount('')
   }
 
   const finalizeCheckout = async () => {
-    const pmLabel = paymentMethod === 'card' ? 'Kartenzahlung' : paymentMethod === 'cash' ? 'Barzahlung' : 'Rechnung'
-    await supabase.from('bookings').update({ status: 'checked_out', payment_method: pmLabel, checked_out_at: new Date().toISOString() }).eq('id', checkoutPreview.id)
-    const invoiceCharges = checkoutItems.filter(i => i.id !== 'room').map(i => ({ type: i.type, details: i.details, amount: i.amount, date: new Date().toISOString() }))
-    openInvoicePDF({ ...checkoutPreview, amount_due: checkoutItems.find(i => i.id === 'room')?.amount || 0 }, invoiceCharges)
+    await doFinalizeCheckout(checkoutPreview, checkoutItems, paymentMethod)
     setCheckoutPreview(null); setCheckoutItems([]); setPaymentMethod('card'); load()
   }
 

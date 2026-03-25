@@ -1,4 +1,5 @@
 import { supabase } from './supabase'
+import { HOTEL, HOTEL_ADDRESS } from './hotel'
 
 export async function loadInvoiceData(booking) {
   const [sr, mb] = await Promise.all([
@@ -67,11 +68,11 @@ export function generateInvoiceHTML(booking, charges, invoiceNumber) {
 
 <div class="header">
   <div>
-    <div class="hotel">Maritim Hotel Ingolstadt</div>
+    <div class="hotel">${HOTEL.name}</div>
     <div class="hotel-sub">
-      Am Congress Centrum 1 · 85049 Ingolstadt<br>
-      Tel: +49 841 49050 · info@maritim-ingolstadt.de<br>
-      USt-IdNr: DE 123 456 789
+      ${HOTEL_ADDRESS}<br>
+      Tel: ${HOTEL.phone} · ${HOTEL.email}<br>
+      USt-IdNr: ${HOTEL.taxId}
     </div>
   </div>
   <div>
@@ -117,9 +118,9 @@ export function generateInvoiceHTML(booking, charges, invoiceNumber) {
 <p style="font-size:12px;color:#666;margin-bottom:8px">Zahlungsart: ${booking.source === 'Booking.com' || booking.source === 'Expedia' ? 'Vorauszahlung über ' + booking.source : 'Rechnung'}</p>
 
 <div class="footer">
-  Maritim Hotel Ingolstadt · Am Congress Centrum 1 · 85049 Ingolstadt<br>
-  Geschäftsführer: [Name] · HRB [Nr.] · Amtsgericht Ingolstadt<br>
-  IBAN: DE89 3704 0044 0532 0130 00 · BIC: COBADEFFXXX
+  ${HOTEL.name} · ${HOTEL_ADDRESS}<br>
+  Geschäftsführer: [Name] · HRB [Nr.] · Amtsgericht ${HOTEL.city}<br>
+  IBAN: ${HOTEL.iban} · BIC: ${HOTEL.bic}
 </div>
 
 <script>setTimeout(() => window.print(), 500)</script>

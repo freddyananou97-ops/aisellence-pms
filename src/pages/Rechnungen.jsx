@@ -11,6 +11,7 @@ export default function Rechnungen() {
   const [dateFilter, setDateFilter] = useState('alle')
   const [customFrom, setCustomFrom] = useState('')
   const [customTo, setCustomTo] = useState('')
+  const [visibleCount, setVisibleCount] = useState(50)
 
   const load = useCallback(async () => {
     const { data } = await supabase.from('bookings').select('*').order('check_out', { ascending: false })
@@ -114,7 +115,7 @@ export default function Rechnungen() {
         </div>
         {filtered.length === 0 ? (
           <div style={{ padding: 24, textAlign: 'center', color: 'var(--textDim)', fontSize: 12 }}>Keine Rechnungen im gewählten Zeitraum</div>
-        ) : filtered.map(b => {
+        ) : filtered.slice(0, visibleCount).map(b => {
           const invoiceNr = `RE-${new Date(b.check_out).getFullYear()}-${String(b.booking_id || b.id).slice(-4).toUpperCase()}`
           return (
             <div key={b.id} style={{ display: 'grid', gridTemplateColumns: '100px 1fr 60px 90px 60px 70px 80px 60px', padding: '12px 16px', borderBottom: '1px solid var(--border)', gap: 8, cursor: 'pointer' }}
@@ -130,6 +131,14 @@ export default function Rechnungen() {
             </div>
           )
         })}
+        {filtered.length > visibleCount && (
+          <button onClick={() => setVisibleCount(v => v + 50)} style={{ width: '100%', padding: 12, background: 'transparent', border: 'none', borderTop: '1px solid var(--border)', fontSize: 12, color: 'var(--textMuted)', cursor: 'pointer', fontFamily: 'inherit' }}>
+            Mehr laden ({visibleCount} von {filtered.length} angezeigt)
+          </button>
+        )}
+        {filtered.length > 0 && filtered.length <= visibleCount && (
+          <div style={{ padding: '8px 16px', fontSize: 10, color: 'var(--textDim)', textAlign: 'center' }}>{filtered.length} Rechnungen</div>
+        )}
       </div>
 
       {/* Detail Panel */}

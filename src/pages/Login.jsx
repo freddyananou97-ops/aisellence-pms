@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import * as THREE from 'three'
 import Logo from '../components/Logo'
 import { loginEmployee } from '../lib/supabase'
+import { HOTEL } from '../lib/hotel'
 
 function getLoginMode() {
   const h = new Date().getHours()
@@ -130,7 +131,7 @@ export default function Login({ onLogin, transitioning }) {
     setLoading(true); setError('')
     const employee = await loginEmployee(name, pin)
     if (employee) {
-      onLogin({ ...employee, hotel: 'Maritim Hotel Ingolstadt', tier })
+      onLogin({ ...employee, hotel: HOTEL.name, tier })
     } else {
       setError('Name oder PIN falsch')
     }

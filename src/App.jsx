@@ -1,11 +1,11 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, lazy, Suspense } from 'react'
 import { ThemeProvider, useTheme } from './lib/theme'
 import { TierProvider, useTier } from './lib/tier'
 import { getAllowedModules, getDefaultRoute } from './lib/roles'
 
 import ErrorBoundary from './components/ErrorBoundary'
 import Sidebar from './components/Sidebar'
-import Login from './pages/Login'
+const Login = lazy(() => import('./pages/Login'))
 import GuestDisplay from './pages/GuestDisplay'
 import Dashboard from './pages/Dashboard'
 import Buchungen from './pages/Buchungen'
@@ -85,7 +85,7 @@ function AppContent() {
     || new URLSearchParams(window.location.search).get('page') === 'guest-display'
   if (isGuestDisplay) return <GuestDisplay />
 
-  if (!user) return <Login onLogin={handleLogin} transitioning={false} />
+  if (!user) return <Suspense fallback={<div style={{ minHeight: '100vh', background: '#050505' }} />}><Login onLogin={handleLogin} transitioning={false} /></Suspense>
 
   const allowed = getAllowedModules(user.role, tier)
 
@@ -125,7 +125,7 @@ function AppContent() {
       {/* Login overlay during transition */}
       {showLogin && transitioning && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 9999, pointerEvents: 'none' }}>
-          <Login onLogin={() => {}} transitioning={true} />
+          <Suspense fallback={null}><Login onLogin={() => {}} transitioning={true} /></Suspense>
         </div>
       )}
 

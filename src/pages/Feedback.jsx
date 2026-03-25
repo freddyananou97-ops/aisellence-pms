@@ -10,6 +10,7 @@ export default function Feedback() {
   const [savingResponse, setSavingResponse] = useState(false)
   const [showNew, setShowNew] = useState(false)
   const [newFeedback, setNewFeedback] = useState({ guest_name: '', room_number: '', message: '', overall_rating: 5 })
+  const [visibleCount, setVisibleCount] = useState(50)
 
   const load = useCallback(async () => {
     const { data } = await supabase.from('feedback').select('*').order('submitted_at', { ascending: false })
@@ -146,7 +147,7 @@ export default function Feedback() {
 
       {/* Feedback List */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-        {filtered.map(f => {
+        {filtered.slice(0, visibleCount).map(f => {
           const pos = isPositive(f)
           const color = pos ? '#10b981' : '#ef4444'
           return (
@@ -172,6 +173,11 @@ export default function Feedback() {
           )
         })}
         {filtered.length === 0 && <div style={{ padding: 40, textAlign: 'center', color: 'var(--textDim)', fontSize: 13 }}>Keine Feedbacks</div>}
+        {filtered.length > visibleCount && (
+          <button onClick={() => setVisibleCount(v => v + 50)} style={{ width: '100%', padding: 12, background: 'var(--bgCard)', border: '1px solid var(--borderLight)', borderRadius: 10, fontSize: 12, color: 'var(--textMuted)', cursor: 'pointer', fontFamily: 'inherit', marginTop: 8 }}>
+            Mehr laden ({visibleCount} von {filtered.length} angezeigt)
+          </button>
+        )}
       </div>
 
       {/* Detail Panel */}
