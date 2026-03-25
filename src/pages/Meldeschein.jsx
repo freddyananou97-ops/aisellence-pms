@@ -66,8 +66,8 @@ export default function Meldeschein() {
     if (s.status === 'active') return { label: 'Aktiv — Warte auf Gast...', color: '#f59e0b', pulse: true }
     if (s.status === 'awaiting_cash') return { label: 'Barzahlung ausstehend', color: '#f59e0b', pulse: true }
     if (s.status === 'completed') return { label: 'Meldeschein eingegangen', color: '#10b981', pulse: false }
-    if (s.status === 'signed') return { label: 'Rechnung unterschrieben', color: '#10b981', pulse: false }
-    if (s.status === 'paid') return { label: 'Bezahlt', color: '#10b981', pulse: false }
+    if (s.status === 'signed') return { label: 'Unterschrieben — Zahlung ausstehend', color: '#3b82f6', pulse: true }
+    if (s.status === 'paid') return { label: 'Bezahlt & ausgecheckt', color: '#10b981', pulse: false }
     if (s.status === 'waiting') return { label: 'Wartet', color: '#6b7280', pulse: false }
     return { label: s.status, color: '#6b7280', pulse: false }
   }

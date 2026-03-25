@@ -42,6 +42,7 @@ export default function Buchungen() {
   const [guests, setGuests] = useState([])
   const [guestSearch, setGuestSearch] = useState('')
   const [guestDropdown, setGuestDropdown] = useState(false)
+  const [cashPending, setCashPending] = useState([])
   const [regForms, setRegForms] = useState([])
 
   const todayStr = new Date().toISOString().split('T')[0]
@@ -61,6 +62,20 @@ export default function Buchungen() {
   }, [])
 
   const hasMeldeschein = (bookingId) => bookingId && regForms.some(f => f.booking_id === bookingId && f.status === 'completed')
+
+  // Cash payment pending sessions
+  useEffect(() => {
+    const loadCash = async () => { const { data } = await supabase.from('guest_display_sessions').select('*').eq('status', 'awaiting_cash'); setCashPending(data || []) }
+    loadCash()
+    const ch = supabase.channel('buchungen-cash').on('postgres_changes', { event: '*', schema: 'public', table: 'guest_display_sessions' }, () => loadCash()).subscribe()
+    return () => supabase.removeChannel(ch)
+  }, [])
+
+  const confirmCashPayment = async (sess) => {
+    await supabase.from('guest_display_sessions').update({ status: 'paid' }).eq('id', sess.id)
+    if (sess.booking_id) await supabase.from('bookings').update({ status: 'checked_out', payment_method: 'Barzahlung', checked_out_at: new Date().toISOString() }).eq('booking_id', sess.booking_id)
+    setCashPending(prev => prev.filter(s => s.id !== sess.id)); load()
+  }
 
   useModalClose(!!selected, () => { setSelected(null); setEditing(false) })
   useModalClose(!!showNewBooking, () => setShowNewBooking(false))
@@ -263,6 +278,20 @@ export default function Buchungen() {
       </div>
 
       {/* LIST VIEW */}
+      {/* Cash Payment Banners */}
+      {cashPending.map(sess => (
+        <div key={sess.id} style={{ padding: '12px 18px', background: 'rgba(245,158,11,0.06)', border: '2px solid rgba(245,158,11,0.3)', borderRadius: 12, marginBottom: 12, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#f59e0b', animation: 'pulse 1.5s ease-in-out infinite' }} />
+            <div>
+              <div style={{ fontSize: 12, color: '#f59e0b', fontWeight: 600 }}>Barzahlung — Zimmer {sess.room} · {sess.guest_name}</div>
+              <div style={{ fontSize: 10, color: 'var(--textMuted)' }}>{(() => { const d = sess.data || {}; return ((parseFloat(d.room_total) || 0) + (d.items || []).reduce((s, c) => s + (parseFloat(c.amount) || 0), 0)).toFixed(2) })()}€</div>
+            </div>
+          </div>
+          <button onClick={() => confirmCashPayment(sess)} style={{ padding: '8px 16px', borderRadius: 8, border: 'none', background: '#10b981', color: '#fff', fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>Bestätigen</button>
+        </div>
+      ))}
+
       {view === 'liste' && <>
         {/* Status filters */}
         <div style={{ display: 'flex', gap: 6, marginBottom: 16, flexWrap: 'wrap' }}>

@@ -345,6 +345,7 @@ function InvoiceView({ session, onComplete, lang: initialLang }) {
   const [signature, setSignature] = useState(null)
   const [submitting, setSubmitting] = useState(false)
   const [stripeUrl, setStripeUrl] = useState(null)
+  const [stripeSessionId, setStripeSessionId] = useState(null)
   const [stripeLoading, setStripeLoading] = useState(false)
   const [stripeError, setStripeError] = useState(null)
   const [globalError, setGlobalError] = useState(null)
@@ -373,15 +374,33 @@ function InvoiceView({ session, onComplete, lang: initialLang }) {
     try {
       const lineItems = buildLineItems({ roomTotal, nights: data.nights, room: session.room, charges: items })
       const origin = window.location.origin
-      const { url } = await createCheckoutSession({
+      const { url, id } = await createCheckoutSession({
         lineItems, metadata: { booking_id: session.booking_id || '', guest_name: session.guest_name, room: session.room, session_id: session.id || '' },
         successUrl: `${origin}/guest-display?payment=success&session_id={CHECKOUT_SESSION_ID}&gds=${session.id || ''}`,
         cancelUrl: `${origin}/guest-display?payment=cancelled`,
       })
-      setStripeUrl(url)
+      setStripeUrl(url); setStripeSessionId(id)
     } catch (err) { setStripeError(err.message) }
     setStripeLoading(false)
   }
+
+  // Poll Stripe for payment confirmation (fallback if redirect fails)
+  useEffect(() => {
+    if (!stripeSessionId || step !== 'payment') return
+    const poll = setInterval(async () => {
+      try {
+        const res = await fetch('/api/verify-payment', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sessionId: stripeSessionId }) })
+        const { paid } = await res.json()
+        if (paid) {
+          clearInterval(poll)
+          await supabase.from('guest_display_sessions').update({ status: 'paid' }).eq('id', session.id)
+          if (session.booking_id) await supabase.from('bookings').update({ status: 'checked_out', payment_method: 'Stripe Online', checked_out_at: new Date().toISOString() }).eq('booking_id', session.booking_id)
+          onComplete()
+        }
+      } catch {} // silent — will retry
+    }, 10000)
+    return () => clearInterval(poll)
+  }, [stripeSessionId, step, session.id, session.booking_id, onComplete])
 
   const handleCash = async () => {
     try {
