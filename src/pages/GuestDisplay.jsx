@@ -2,101 +2,10 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { supabase } from '../lib/supabase'
 import { createCheckoutSession, buildLineItems } from '../lib/stripe'
 import { HOTEL, HOTEL_ADDRESS } from '../lib/hotel'
+import { T, GUEST_LANGUAGES, ID_TYPES } from '../lib/translations'
+import { NATIONALITIES, PHONE_CODES } from '../lib/nationalities'
 import QRCode from '../components/QRCode'
 import SignatureCanvas from '../components/SignatureCanvas'
-
-// ============================================================
-// TRANSLATIONS (complete DE + EN)
-// ============================================================
-const T = {
-  de: {
-    title: 'Meldeschein', subtitle: 'Pflichtangaben gemäß §30 BMG',
-    mainGuest: 'Hauptgast', companion: 'Begleitperson', addCompanion: '+ Begleitperson hinzufügen', remove: 'Entfernen',
-    firstName: 'Vorname', lastName: 'Nachname', birthDate: 'Geburtsdatum', nationality: 'Staatsangehörigkeit',
-    street: 'Straße und Hausnummer', zip: 'PLZ', city: 'Ort', country: 'Land',
-    idType: 'Ausweistyp', idNumber: 'Ausweisnummer', phone: 'Handynummer', phonePlaceholder: 'Nummer ohne Vorwahl',
-    guestLang: 'Bevorzugte Sprache',
-    signature: 'Unterschrift', signatureHint: 'Ich bestätige die Richtigkeit der Angaben.',
-    signHere: 'Hier unterschreiben', clearSig: 'Unterschrift löschen',
-    submit: 'Meldeschein absenden', submitting: 'Wird gespeichert...',
-    thanks: 'Vielen Dank!', checkinDone: 'Der Meldeschein wurde erfolgreich übermittelt.', invoiceDone: 'Die Rechnung wurde bestätigt.',
-    invoiceTitle: 'Rechnung', invoiceConfirm: 'Rechnung bestätigen', processing: 'Wird verarbeitet...',
-    guest: 'Gast', room: 'Zimmer', checkIn: 'Check-in', checkOut: 'Check-out',
-    position: 'Position', amount: 'Betrag', nights: 'Nächte', total: 'Gesamtbetrag', net: 'Netto', vat: 'MwSt',
-    stayNights: 'Übernachtung', selectIdType: 'Bitte wählen...', searchPlaceholder: 'Suchen...',
-    passport: 'Reisepass', idCard: 'Personalausweis', driversLicense: 'Führerschein',
-    payAmount: 'Zu zahlender Betrag', cash: 'Bar', card: 'Karte', atReception: 'An der Rezeption', creditDebit: 'Kredit-/Debitkarte',
-    cashPayment: 'Barzahlung', payAtReception: 'Bitte bezahlen Sie den Betrag an der Rezeption.', autoConfirm: 'Wir bestätigen Ihre Zahlung hier automatisch.',
-    waitingConfirm: 'Warte auf Bestätigung von der Rezeption...', cardPayment: 'Kartenzahlung', payNow: 'Jetzt bezahlen', scanQR: 'Oder scannen Sie den QR-Code mit Ihrem Handy',
-    timeout: 'Zeitüberschreitung — bitte wenden Sie sich an die Rezeption.', timeoutTitle: 'Zeitüberschreitung',
-    welcome: 'Willkommen im', ready: 'Bereit für den nächsten Gast',
-    error: 'Es ist ein Fehler aufgetreten. Bitte wenden Sie sich an die Rezeption.',
-    required: 'Pflichtfeld', signatureRequired: 'Bitte unterschreiben Sie.',
-    gdpr: 'Ich stimme der Verarbeitung meiner Daten gemäß der Datenschutzerklärung zu.',
-    gdprRequired: 'Bitte bestätigen Sie die Datenschutzerklärung.',
-    step: 'Schritt', of: 'von', stepData: 'Persönliche Daten', stepCompanions: 'Begleitpersonen', stepSign: 'Unterschrift',
-    stepInvoice: 'Rechnung prüfen', stepPay: 'Bezahlung',
-    bookingNotFound: 'Buchung nicht gefunden', bookingNotFoundMsg: 'Bitte überprüfen Sie den Link oder wenden Sie sich an das Hotel.',
-    loading: 'Buchung wird geladen...',
-    preCheckinThanks: 'Der Meldeschein wurde vorab eingereicht. Wir freuen uns auf Ihren Aufenthalt!',
-  },
-  en: {
-    title: 'Registration Form', subtitle: 'Required information per §30 BMG',
-    mainGuest: 'Main Guest', companion: 'Companion', addCompanion: '+ Add companion', remove: 'Remove',
-    firstName: 'First name', lastName: 'Last name', birthDate: 'Date of birth', nationality: 'Nationality',
-    street: 'Street and house number', zip: 'Postal code', city: 'City', country: 'Country',
-    idType: 'ID type', idNumber: 'ID number', phone: 'Mobile number', phonePlaceholder: 'Number without prefix',
-    guestLang: 'Preferred language',
-    signature: 'Signature', signatureHint: 'I confirm the accuracy of the information provided.',
-    signHere: 'Sign here', clearSig: 'Clear signature',
-    submit: 'Submit registration', submitting: 'Saving...',
-    thanks: 'Thank you!', checkinDone: 'The registration form has been submitted successfully.', invoiceDone: 'The invoice has been confirmed.',
-    invoiceTitle: 'Invoice', invoiceConfirm: 'Confirm invoice', processing: 'Processing...',
-    guest: 'Guest', room: 'Room', checkIn: 'Check-in', checkOut: 'Check-out',
-    position: 'Item', amount: 'Amount', nights: 'Nights', total: 'Total', net: 'Net', vat: 'VAT',
-    stayNights: 'Accommodation', selectIdType: 'Please select...', searchPlaceholder: 'Search...',
-    passport: 'Passport', idCard: 'ID Card', driversLicense: "Driver's License",
-    payAmount: 'Amount due', cash: 'Cash', card: 'Card', atReception: 'At the front desk', creditDebit: 'Credit/Debit card',
-    cashPayment: 'Cash payment', payAtReception: 'Please pay the amount at the front desk.', autoConfirm: 'Your payment will be confirmed here automatically.',
-    waitingConfirm: 'Waiting for confirmation from the front desk...', cardPayment: 'Card payment', payNow: 'Pay now', scanQR: 'Or scan the QR code with your phone',
-    timeout: 'Timeout — please contact the front desk.', timeoutTitle: 'Timeout',
-    welcome: 'Welcome to', ready: 'Ready for the next guest',
-    error: 'An error occurred. Please contact the front desk.',
-    required: 'Required field', signatureRequired: 'Please sign.',
-    gdpr: 'I agree to the processing of my data according to the privacy policy.',
-    gdprRequired: 'Please confirm the privacy policy.',
-    step: 'Step', of: 'of', stepData: 'Personal data', stepCompanions: 'Companions', stepSign: 'Signature',
-    stepInvoice: 'Review invoice', stepPay: 'Payment',
-    bookingNotFound: 'Booking not found', bookingNotFoundMsg: 'Please check the link or contact the hotel.',
-    loading: 'Loading booking...',
-    preCheckinThanks: 'The registration form has been submitted in advance. We look forward to your stay!',
-  },
-}
-
-// ============================================================
-// DATA: NATIONALITIES, PHONE CODES, GUEST LANGUAGES, ID TYPES
-// ============================================================
-const NATIONALITIES = {
-  de: [
-    { v: 'deutsch', l: 'Deutsch' }, { v: 'österreichisch', l: 'Österreichisch' }, { v: 'schweizerisch', l: 'Schweizerisch' }, { v: '---', l: '───────────' },
-    { v: 'albanisch', l: 'Albanisch' }, { v: 'amerikanisch', l: 'Amerikanisch' }, { v: 'australisch', l: 'Australisch' }, { v: 'belgisch', l: 'Belgisch' }, { v: 'bosnisch', l: 'Bosnisch' }, { v: 'brasilianisch', l: 'Brasilianisch' }, { v: 'britisch', l: 'Britisch' }, { v: 'bulgarisch', l: 'Bulgarisch' }, { v: 'chinesisch', l: 'Chinesisch' }, { v: 'dänisch', l: 'Dänisch' }, { v: 'estnisch', l: 'Estnisch' }, { v: 'finnisch', l: 'Finnisch' }, { v: 'französisch', l: 'Französisch' }, { v: 'georgisch', l: 'Georgisch' }, { v: 'griechisch', l: 'Griechisch' }, { v: 'indisch', l: 'Indisch' }, { v: 'iranisch', l: 'Iranisch' }, { v: 'irakisch', l: 'Irakisch' }, { v: 'irisch', l: 'Irisch' }, { v: 'isländisch', l: 'Isländisch' }, { v: 'israelisch', l: 'Israelisch' }, { v: 'italienisch', l: 'Italienisch' }, { v: 'japanisch', l: 'Japanisch' }, { v: 'kanadisch', l: 'Kanadisch' }, { v: 'kasachisch', l: 'Kasachisch' }, { v: 'kosovarisch', l: 'Kosovarisch' }, { v: 'koreanisch', l: 'Koreanisch' }, { v: 'kroatisch', l: 'Kroatisch' }, { v: 'kubanisch', l: 'Kubanisch' }, { v: 'lettisch', l: 'Lettisch' }, { v: 'litauisch', l: 'Litauisch' }, { v: 'luxemburgisch', l: 'Luxemburgisch' }, { v: 'marokkanisch', l: 'Marokkanisch' }, { v: 'mazedonisch', l: 'Mazedonisch' }, { v: 'mexikanisch', l: 'Mexikanisch' }, { v: 'moldauisch', l: 'Moldauisch' }, { v: 'montenegrinisch', l: 'Montenegrinisch' }, { v: 'niederländisch', l: 'Niederländisch' }, { v: 'norwegisch', l: 'Norwegisch' }, { v: 'pakistanisch', l: 'Pakistanisch' }, { v: 'polnisch', l: 'Polnisch' }, { v: 'portugiesisch', l: 'Portugiesisch' }, { v: 'rumänisch', l: 'Rumänisch' }, { v: 'russisch', l: 'Russisch' }, { v: 'saudi-arabisch', l: 'Saudi-Arabisch' }, { v: 'schwedisch', l: 'Schwedisch' }, { v: 'serbisch', l: 'Serbisch' }, { v: 'slowakisch', l: 'Slowakisch' }, { v: 'slowenisch', l: 'Slowenisch' }, { v: 'spanisch', l: 'Spanisch' }, { v: 'syrisch', l: 'Syrisch' }, { v: 'thailändisch', l: 'Thailändisch' }, { v: 'tschechisch', l: 'Tschechisch' }, { v: 'tunesisch', l: 'Tunesisch' }, { v: 'türkisch', l: 'Türkisch' }, { v: 'ukrainisch', l: 'Ukrainisch' }, { v: 'ungarisch', l: 'Ungarisch' }, { v: 'vietnamesisch', l: 'Vietnamesisch' },
-  ],
-  en: [
-    { v: 'german', l: 'German' }, { v: 'austrian', l: 'Austrian' }, { v: 'swiss', l: 'Swiss' }, { v: '---', l: '───────────' },
-    { v: 'albanian', l: 'Albanian' }, { v: 'american', l: 'American' }, { v: 'australian', l: 'Australian' }, { v: 'belgian', l: 'Belgian' }, { v: 'bosnian', l: 'Bosnian' }, { v: 'brazilian', l: 'Brazilian' }, { v: 'british', l: 'British' }, { v: 'bulgarian', l: 'Bulgarian' }, { v: 'canadian', l: 'Canadian' }, { v: 'chinese', l: 'Chinese' }, { v: 'croatian', l: 'Croatian' }, { v: 'cuban', l: 'Cuban' }, { v: 'czech', l: 'Czech' }, { v: 'danish', l: 'Danish' }, { v: 'dutch', l: 'Dutch' }, { v: 'estonian', l: 'Estonian' }, { v: 'finnish', l: 'Finnish' }, { v: 'french', l: 'French' }, { v: 'georgian', l: 'Georgian' }, { v: 'greek', l: 'Greek' }, { v: 'hungarian', l: 'Hungarian' }, { v: 'icelandic', l: 'Icelandic' }, { v: 'indian', l: 'Indian' }, { v: 'iranian', l: 'Iranian' }, { v: 'iraqi', l: 'Iraqi' }, { v: 'irish', l: 'Irish' }, { v: 'israeli', l: 'Israeli' }, { v: 'italian', l: 'Italian' }, { v: 'japanese', l: 'Japanese' }, { v: 'kazakh', l: 'Kazakh' }, { v: 'korean', l: 'Korean' }, { v: 'kosovar', l: 'Kosovar' }, { v: 'latvian', l: 'Latvian' }, { v: 'lithuanian', l: 'Lithuanian' }, { v: 'luxembourgish', l: 'Luxembourgish' }, { v: 'macedonian', l: 'Macedonian' }, { v: 'mexican', l: 'Mexican' }, { v: 'moldovan', l: 'Moldovan' }, { v: 'montenegrin', l: 'Montenegrin' }, { v: 'moroccan', l: 'Moroccan' }, { v: 'norwegian', l: 'Norwegian' }, { v: 'pakistani', l: 'Pakistani' }, { v: 'polish', l: 'Polish' }, { v: 'portuguese', l: 'Portuguese' }, { v: 'romanian', l: 'Romanian' }, { v: 'russian', l: 'Russian' }, { v: 'saudi', l: 'Saudi Arabian' }, { v: 'serbian', l: 'Serbian' }, { v: 'slovak', l: 'Slovak' }, { v: 'slovenian', l: 'Slovenian' }, { v: 'spanish', l: 'Spanish' }, { v: 'swedish', l: 'Swedish' }, { v: 'syrian', l: 'Syrian' }, { v: 'thai', l: 'Thai' }, { v: 'tunisian', l: 'Tunisian' }, { v: 'turkish', l: 'Turkish' }, { v: 'ukrainian', l: 'Ukrainian' }, { v: 'vietnamese', l: 'Vietnamese' },
-  ],
-}
-const PHONE_CODES = [
-  { code: '+49', l: 'Deutschland +49' }, { code: '+43', l: 'Österreich +43' }, { code: '+41', l: 'Schweiz +41' }, { code: '---', l: '───────────' },
-  { code: '+1', l: 'USA/Kanada +1' }, { code: '+7', l: 'Russland +7' }, { code: '+20', l: 'Ägypten +20' }, { code: '+27', l: 'Südafrika +27' }, { code: '+30', l: 'Griechenland +30' }, { code: '+31', l: 'Niederlande +31' }, { code: '+32', l: 'Belgien +32' }, { code: '+33', l: 'Frankreich +33' }, { code: '+34', l: 'Spanien +34' }, { code: '+36', l: 'Ungarn +36' }, { code: '+39', l: 'Italien +39' }, { code: '+40', l: 'Rumänien +40' }, { code: '+44', l: 'UK +44' }, { code: '+45', l: 'Dänemark +45' }, { code: '+46', l: 'Schweden +46' }, { code: '+47', l: 'Norwegen +47' }, { code: '+48', l: 'Polen +48' }, { code: '+55', l: 'Brasilien +55' }, { code: '+81', l: 'Japan +81' }, { code: '+82', l: 'Südkorea +82' }, { code: '+86', l: 'China +86' }, { code: '+90', l: 'Türkei +90' }, { code: '+91', l: 'Indien +91' }, { code: '+351', l: 'Portugal +351' }, { code: '+352', l: 'Luxemburg +352' }, { code: '+353', l: 'Irland +353' }, { code: '+358', l: 'Finnland +358' }, { code: '+380', l: 'Ukraine +380' }, { code: '+381', l: 'Serbien +381' }, { code: '+385', l: 'Kroatien +385' }, { code: '+386', l: 'Slowenien +386' }, { code: '+387', l: 'Bosnien +387' }, { code: '+420', l: 'Tschechien +420' }, { code: '+421', l: 'Slowakei +421' }, { code: '+966', l: 'Saudi-Arabien +966' }, { code: '+971', l: 'VAE +971' }, { code: '+972', l: 'Israel +972' },
-]
-const GUEST_LANGUAGES = [
-  { v: 'german', l: 'Deutsch' }, { v: 'english', l: 'English' }, { v: 'french', l: 'Français' },
-  { v: 'italian', l: 'Italiano' }, { v: 'spanish', l: 'Español' }, { v: 'dutch', l: 'Nederlands' },
-  { v: 'polish', l: 'Polski' }, { v: 'russian', l: 'Русский' }, { v: 'chinese', l: '中文' },
-  { v: 'arabic', l: 'العربية' }, { v: 'turkish', l: 'Türkçe' }, { v: 'japanese', l: '日本語' },
-]
-const ID_TYPES = { de: [{ v: '', l: 'Bitte wählen...' }, { v: 'passport', l: 'Reisepass' }, { v: 'id_card', l: 'Personalausweis' }, { v: 'drivers_license', l: 'Führerschein' }], en: [{ v: '', l: 'Please select...' }, { v: 'passport', l: 'Passport' }, { v: 'id_card', l: 'ID Card' }, { v: 'drivers_license', l: "Driver's License" }] }
 
 const AUTO_SAVE_KEY = 'gd-checkin-form'
 const CASH_TIMEOUT_MS = 30 * 60 * 1000
@@ -107,6 +16,7 @@ const CASH_TIMEOUT_MS = 30 * 60 * 1000
 function SearchSelect({ options, value, onChange, placeholder, style: extraStyle }) {
   const [open, setOpen] = useState(false)
   const [search, setSearch] = useState('')
+  const [highlighted, setHighlighted] = useState(-1)
   const ref = useRef(null)
   useEffect(() => {
     if (!open) return
@@ -121,20 +31,30 @@ function SearchSelect({ options, value, onChange, placeholder, style: extraStyle
     const q = search.toLowerCase()
     return !q || (o.l || '').toLowerCase().includes(q) || (o.v || '').toLowerCase().includes(q) || (o.code || '').toLowerCase().includes(q)
   })
+  const selectables = filtered.filter(o => o.v !== '---' && o.code !== '---')
+  const handleKeyDown = (e) => {
+    if (e.key === 'Escape') { setOpen(false); return }
+    if (e.key === 'ArrowDown') { e.preventDefault(); setHighlighted(h => Math.min(h + 1, selectables.length - 1)) }
+    if (e.key === 'ArrowUp') { e.preventDefault(); setHighlighted(h => Math.max(h - 1, 0)) }
+    if (e.key === 'Enter' && highlighted >= 0 && selectables[highlighted]) {
+      e.preventDefault(); const o = selectables[highlighted]; onChange(o.v || o.code); setOpen(false); setSearch('')
+    }
+  }
   return (
     <div ref={ref} style={{ position: 'relative', ...extraStyle }}>
-      <button type="button" onClick={() => { setOpen(!open); setSearch('') }} style={{ ...ls.input, textAlign: 'left', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: 0 }}>
+      <button type="button" onClick={() => { setOpen(!open); setSearch(''); setHighlighted(-1) }} style={{ ...ls.input, textAlign: 'left', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: 0 }}>
         <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: displayValue ? '#1a1a1a' : '#9ca3af' }}>{displayValue || placeholder || ''}</span>
         <span style={{ fontSize: 10, color: '#9ca3af', flexShrink: 0, marginLeft: 4 }}>{open ? '▲' : '▼'}</span>
       </button>
       {open && (
         <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 50, background: '#fff', border: '1px solid #d1d5db', borderRadius: 10, marginTop: 4, boxShadow: '0 8px 30px rgba(0,0,0,0.12)', maxHeight: 260, display: 'flex', flexDirection: 'column' }}>
-          <input autoFocus value={search} onChange={e => setSearch(e.target.value)} placeholder={placeholder || 'Suchen...'} style={{ ...ls.input, margin: 0, border: 'none', borderBottom: '1px solid #e5e7eb', borderRadius: '10px 10px 0 0', fontSize: 14 }} />
+          <input autoFocus value={search} onChange={e => { setSearch(e.target.value); setHighlighted(0) }} onKeyDown={handleKeyDown} placeholder={placeholder || 'Suchen...'} style={{ ...ls.input, margin: 0, border: 'none', borderBottom: '1px solid #e5e7eb', borderRadius: '10px 10px 0 0', fontSize: 14 }} />
           <div style={{ overflowY: 'auto', maxHeight: 210 }}>
             {filtered.map((o, i) => {
               const key = o.v || o.code || i
               if (o.v === '---' || o.code === '---') return <div key={key + i} style={{ padding: '4px 14px', fontSize: 11, color: '#d1d5db', userSelect: 'none' }}>{o.l}</div>
-              return <button key={key} type="button" onClick={() => { onChange(o.v || o.code); setOpen(false); setSearch('') }} style={{ display: 'block', width: '100%', textAlign: 'left', padding: '10px 14px', border: 'none', cursor: 'pointer', background: (o.v === value || o.code === value) ? '#eff6ff' : 'transparent', color: '#1a1a1a', fontSize: 14, fontFamily: 'inherit' }}>{o.l}</button>
+              const selIdx = selectables.indexOf(o)
+              return <button key={key} type="button" onClick={() => { onChange(o.v || o.code); setOpen(false); setSearch('') }} style={{ display: 'block', width: '100%', textAlign: 'left', padding: '10px 14px', border: 'none', cursor: 'pointer', background: selIdx === highlighted ? '#dbeafe' : (o.v === value || o.code === value) ? '#eff6ff' : 'transparent', color: '#1a1a1a', fontSize: 14, fontFamily: 'inherit' }}>{o.l}</button>
             })}
             {filtered.length === 0 && <div style={{ padding: 14, color: '#9ca3af', fontSize: 13 }}>—</div>}
           </div>
@@ -179,6 +99,7 @@ function FieldError({ msg }) {
 // ============================================================
 function WelcomeScreen({ lang = 'de' }) {
   const t = T[lang]
+  const locale = lang === 'en' ? 'en-GB' : 'de-DE'
   const [clock, setClock] = useState(new Date())
   useEffect(() => { const iv = setInterval(() => setClock(new Date()), 60000); return () => clearInterval(iv) }, [])
   return (
@@ -190,8 +111,11 @@ function WelcomeScreen({ lang = 'de' }) {
       <h1 style={{ fontSize: 32, fontWeight: 300, color: '#1a1a1a', margin: '0 0 8px', textAlign: 'center', letterSpacing: -0.5 }}>{t.welcome} {HOTEL.name}</h1>
       <p style={{ fontSize: 16, color: '#6b7280', margin: 0, textAlign: 'center' }}>{HOTEL_ADDRESS}</p>
       <div style={{ marginTop: 48, textAlign: 'center' }}>
-        <div style={{ fontSize: 48, fontWeight: 200, color: '#1a1a1a', letterSpacing: 2 }}>{clock.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}</div>
-        <div style={{ fontSize: 14, color: '#9ca3af', marginTop: 4 }}>{clock.toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</div>
+        <div style={{ fontSize: 48, fontWeight: 200, color: '#1a1a1a', letterSpacing: 2 }}>{clock.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' })}</div>
+        <div style={{ fontSize: 14, color: '#9ca3af', marginTop: 4 }}>{clock.toLocaleDateString(locale, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</div>
+      </div>
+      <div style={{ marginTop: 32, textAlign: 'center' }}>
+        <p style={{ fontSize: 13, color: '#9ca3af', margin: 0 }}>{t.checkinInfo}</p>
       </div>
       <div style={{ position: 'absolute', bottom: 32, display: 'flex', alignItems: 'center', gap: 8 }}>
         <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#10b981', animation: 'pulse 2s ease-in-out infinite' }} />
@@ -267,11 +191,23 @@ function CheckinForm({ session, onComplete }) {
       })
       if (regErr) throw regErr
 
-      const { data: existing } = await supabase.from('guests').select('id').eq('first_name', form.first_name).eq('last_name', form.last_name).maybeSingle()
-      if (existing) {
-        await supabase.from('guests').update({ birth_date: form.birth_date, address: `${form.street}, ${form.zip} ${form.city}`, nationality: form.nationality, id_number: form.id_number, id_type: form.id_type, phone: fullPhone, language: form.guest_language }).eq('id', existing.id)
-      } else {
-        await supabase.from('guests').insert({ first_name: form.first_name, last_name: form.last_name, birth_date: form.birth_date, address: `${form.street}, ${form.zip} ${form.city}`, nationality: form.nationality, id_number: form.id_number, id_type: form.id_type, phone: fullPhone, language: form.guest_language, total_stays: 1 })
+      // Find guest via booking → guest_id, or by name as fallback
+      const guestData = { birth_date: form.birth_date, address: `${form.street}, ${form.zip} ${form.city}`, nationality: form.nationality, id_number: form.id_number, id_type: form.id_type, phone: fullPhone, language: form.guest_language }
+      let guestFound = false
+      if (session.booking_id) {
+        const { data: booking } = await supabase.from('bookings').select('guest_id').eq('booking_id', session.booking_id).maybeSingle()
+        if (booking?.guest_id) {
+          await supabase.from('guests').update(guestData).eq('id', booking.guest_id)
+          guestFound = true
+        }
+      }
+      if (!guestFound) {
+        const { data: existing } = await supabase.from('guests').select('id').eq('first_name', form.first_name).eq('last_name', form.last_name).maybeSingle()
+        if (existing) {
+          await supabase.from('guests').update(guestData).eq('id', existing.id)
+        } else {
+          await supabase.from('guests').insert({ first_name: form.first_name, last_name: form.last_name, ...guestData, total_stays: 1 })
+        }
       }
 
       if (session.booking_id) {
