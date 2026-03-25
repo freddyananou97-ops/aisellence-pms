@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { ThemeProvider, useTheme } from './lib/theme'
 import { TierProvider, useTier } from './lib/tier'
 import { getAllowedModules, getDefaultRoute } from './lib/roles'
@@ -27,23 +27,31 @@ import Meldeschein from './pages/Meldeschein'
 function AppContent() {
   const [user, setUser] = useState(null)
   const [page, setPage] = useState('/')
+  const [transitioning, setTransitioning] = useState(false)
+  const [showLogin, setShowLogin] = useState(true)
+  const [dashboardReady, setDashboardReady] = useState(false)
   const { theme, resolvedTheme } = useTheme()
   const { tier, setTier } = useTier()
 
   const handleLogin = (u) => {
+    // Start transition
+    setTransitioning(true)
     setUser(u)
     setTier(u.tier || 'pms')
     setPage(getDefaultRoute(u.role))
+    // After a brief moment, show dashboard underneath
+    setTimeout(() => setDashboardReady(true), 200)
+    // After full transition, remove login overlay
+    setTimeout(() => { setShowLogin(false); setTransitioning(false) }, 1600)
   }
 
   // Guest Display: no auth, no sidebar, standalone route
-  // Supports /guest-display, /#/guest-display, and ?page=guest-display
   const isGuestDisplay = window.location.pathname === '/guest-display'
     || window.location.hash === '#/guest-display'
     || new URLSearchParams(window.location.search).get('page') === 'guest-display'
   if (isGuestDisplay) return <GuestDisplay />
 
-  if (!user) return <Login onLogin={handleLogin} />
+  if (!user) return <Login onLogin={handleLogin} transitioning={false} />
 
   const allowed = getAllowedModules(user.role, tier)
 
@@ -79,8 +87,19 @@ function AppContent() {
           [data-theme="light"] input::placeholder { color: #999 !important; }
         `}</style>
       )}
+
+      {/* Login overlay during transition */}
+      {showLogin && transitioning && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 9999, pointerEvents: 'none' }}>
+          <Login onLogin={() => {}} transitioning={true} />
+        </div>
+      )}
+
       <div data-theme={resolvedTheme} style={{
         display: 'flex', minHeight: '100vh', background: theme.bg, fontFamily: 'system-ui,-apple-system,sans-serif', color: theme.text, transition: 'background 0.3s, color 0.3s',
+        opacity: dashboardReady ? 1 : (transitioning ? 0 : 1),
+        transform: dashboardReady ? 'translateY(0)' : (transitioning ? 'translateY(20px)' : 'translateY(0)'),
+        transition: 'opacity 0.8s ease 0.3s, transform 0.8s ease 0.3s, background 0.3s, color 0.3s',
         '--bg': theme.bg, '--bgSec': theme.bgSec, '--bgCard': theme.bgCard, '--border': theme.border, '--borderLight': theme.borderLight,
         '--text': theme.text, '--textSec': theme.textSec, '--textMuted': theme.textMuted, '--textDim': theme.textDim,
         '--active': theme.active, '--inputBg': theme.inputBg, '--overlayBg': theme.overlayBg, '--modalBg': theme.modalBg, '--modalBorder': theme.modalBorder,
@@ -88,7 +107,7 @@ function AppContent() {
         '--bg-primary': theme.bg, '--bg-secondary': theme.bgSec, '--bg-card': theme.bgCard, '--bg-active': theme.active,
         '--border-light': theme.borderLight, '--text-primary': theme.text, '--text-secondary': theme.textMuted, '--text-muted': theme.textDim, '--text-dim': theme.textDim,
       }}>
-        <Sidebar page={page} setPage={setPage} user={user} onLogout={() => setUser(null)} allowed={allowed} />
+        <Sidebar page={page} setPage={setPage} user={user} onLogout={() => { setUser(null); setShowLogin(true); setDashboardReady(false) }} allowed={allowed} />
         <main className="main-content" style={{ flex: 1, overflow: 'auto' }}>{renderPage()}</main>
       </div>
       <style>{`

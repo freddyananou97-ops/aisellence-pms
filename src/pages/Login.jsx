@@ -4,8 +4,11 @@ import Logo from '../components/Logo'
 import { loginEmployee } from '../lib/supabase'
 import { ROLES } from '../lib/roles'
 
-function ParticleWave() {
+function ParticleWave({ exiting }) {
   const mountRef = useRef(null)
+  const exitRef = useRef(false)
+
+  useEffect(() => { exitRef.current = exiting }, [exiting])
 
   useEffect(() => {
     const container = mountRef.current
@@ -22,11 +25,7 @@ function ParticleWave() {
     renderer.setClearColor(0x000000, 0)
     container.appendChild(renderer.domElement)
 
-    // Particle grid
-    const cols = 80
-    const rows = 80
-    const spacing = 0.5
-    const count = cols * rows
+    const cols = 80, rows = 80, spacing = 0.5, count = cols * rows
     const geometry = new THREE.BufferGeometry()
     const positions = new Float32Array(count * 3)
     const basePositions = new Float32Array(count * 3)
@@ -36,42 +35,33 @@ function ParticleWave() {
         const idx = (i * rows + j) * 3
         const x = (i - cols / 2) * spacing
         const z = (j - rows / 2) * spacing
-        positions[idx] = x
-        positions[idx + 1] = 0
-        positions[idx + 2] = z
-        basePositions[idx] = x
-        basePositions[idx + 1] = 0
-        basePositions[idx + 2] = z
+        positions[idx] = x; positions[idx + 1] = 0; positions[idx + 2] = z
+        basePositions[idx] = x; basePositions[idx + 1] = 0; basePositions[idx + 2] = z
       }
     }
 
     geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3))
 
-    const material = new THREE.PointsMaterial({
-      size: 0.06,
-      color: 0x10b981,
-      transparent: true,
-      opacity: 0.6,
-      sizeAttenuation: true,
-    })
-
+    const material = new THREE.PointsMaterial({ size: 0.06, color: 0x10b981, transparent: true, opacity: 0.6, sizeAttenuation: true })
     const points = new THREE.Points(geometry, material)
     scene.add(points)
 
     let mouse = { x: 0, y: 0 }
-    const handleMouseMove = (e) => {
-      mouse.x = (e.clientX / window.innerWidth) * 2 - 1
-      mouse.y = -(e.clientY / window.innerHeight) * 2 + 1
-    }
+    const handleMouseMove = (e) => { mouse.x = (e.clientX / window.innerWidth) * 2 - 1; mouse.y = -(e.clientY / window.innerHeight) * 2 + 1 }
     window.addEventListener('mousemove', handleMouseMove)
 
-    let animationId
+    let animationId, exitStart = null
     const clock = new THREE.Clock()
 
     const animate = () => {
       animationId = requestAnimationFrame(animate)
       const t = clock.getElapsedTime()
       const pos = geometry.attributes.position.array
+
+      // Exit animation: particles drift upward and scatter
+      if (exitRef.current && !exitStart) exitStart = t
+      const exitProgress = exitStart ? Math.min((t - exitStart) / 1.2, 1) : 0
+      const scatter = exitProgress * exitProgress // ease-in
 
       for (let i = 0; i < count; i++) {
         const idx = i * 3
@@ -80,33 +70,33 @@ function ParticleWave() {
         const dist = Math.sqrt(bx * bx + bz * bz)
         pos[idx + 1] = Math.sin(dist * 0.4 - t * 1.2) * 1.5 +
                         Math.sin(bx * 0.3 + t * 0.8) * 0.5 +
-                        Math.cos(bz * 0.3 + t * 0.6) * 0.5
+                        Math.cos(bz * 0.3 + t * 0.6) * 0.5 +
+                        scatter * (3 + dist * 0.15) // drift upward
+        // Slight outward scatter
+        if (scatter > 0) {
+          pos[idx] = bx + scatter * bx * 0.3
+          pos[idx + 2] = bz + scatter * bz * 0.3
+        }
       }
       geometry.attributes.position.needsUpdate = true
+      material.opacity = 0.6 * (1 - scatter)
 
-      // Subtle camera sway from mouse
       camera.position.x = mouse.x * 2
-      camera.position.y = 12 + mouse.y * 1.5
-      camera.lookAt(0, 0, 0)
+      camera.position.y = 12 + mouse.y * 1.5 + scatter * 4
+      camera.lookAt(0, scatter * 2, 0)
 
       renderer.render(scene, camera)
     }
     animate()
 
-    const handleResize = () => {
-      camera.aspect = container.clientWidth / container.clientHeight
-      camera.updateProjectionMatrix()
-      renderer.setSize(container.clientWidth, container.clientHeight)
-    }
+    const handleResize = () => { camera.aspect = container.clientWidth / container.clientHeight; camera.updateProjectionMatrix(); renderer.setSize(container.clientWidth, container.clientHeight) }
     window.addEventListener('resize', handleResize)
 
     return () => {
       cancelAnimationFrame(animationId)
       window.removeEventListener('mousemove', handleMouseMove)
       window.removeEventListener('resize', handleResize)
-      geometry.dispose()
-      material.dispose()
-      renderer.dispose()
+      geometry.dispose(); material.dispose(); renderer.dispose()
       if (container.contains(renderer.domElement)) container.removeChild(renderer.domElement)
     }
   }, [])
@@ -114,7 +104,7 @@ function ParticleWave() {
   return <div ref={mountRef} style={{ position: 'absolute', inset: 0, zIndex: 0 }} />
 }
 
-export default function Login({ onLogin }) {
+export default function Login({ onLogin, transitioning }) {
   const [name, setName] = useState('')
   const [pin, setPin] = useState('')
   const [tier, setTier] = useState('pms')
@@ -149,17 +139,17 @@ export default function Login({ onLogin }) {
       {/* Left Panel — Branding */}
       <div className="login-brand" style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'space-between', padding: '48px', position: 'relative', overflow: 'hidden' }}>
         {/* 3D Particle Wave Background */}
-        <ParticleWave />
+        <ParticleWave exiting={transitioning} />
 
         {/* Accent line */}
-        <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 1, background: 'linear-gradient(to bottom, transparent, #10b981, transparent)', zIndex: 1 }} />
+        <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 1, background: 'linear-gradient(to bottom, transparent, #10b981, transparent)', zIndex: 1, transition: 'opacity 0.6s ease', opacity: transitioning ? 0 : 1 }} />
 
-        <div style={{ position: 'relative', zIndex: 1 }}>
+        <div style={{ position: 'relative', zIndex: 1, transition: 'opacity 0.5s ease 0.1s, transform 0.5s ease 0.1s', opacity: transitioning ? 0 : 1, transform: transitioning ? 'translateY(-20px)' : 'translateY(0)' }}>
           <div style={{ marginBottom: 12 }}><Logo /></div>
           <p style={{ color: '#333', fontSize: 11, letterSpacing: 3, textTransform: 'uppercase', margin: 0 }}>Property Management System</p>
         </div>
 
-        <div style={{ position: 'relative', zIndex: 1 }}>
+        <div style={{ position: 'relative', zIndex: 1, transition: 'opacity 0.5s ease', opacity: transitioning ? 0 : 1 }}>
           <h1 style={{ fontSize: 36, fontWeight: 300, color: '#fff', margin: '0 0 12px', lineHeight: 1.2, letterSpacing: -1 }}>
             {greeting}
           </h1>
@@ -169,7 +159,7 @@ export default function Login({ onLogin }) {
           </p>
         </div>
 
-        <div style={{ position: 'relative', zIndex: 1, display: 'flex', gap: 24, alignItems: 'center' }}>
+        <div style={{ position: 'relative', zIndex: 1, display: 'flex', gap: 24, alignItems: 'center', transition: 'opacity 0.4s ease', opacity: transitioning ? 0 : 1 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#10b981' }} />
             <span style={{ fontSize: 11, color: '#444' }}>System Online</span>
@@ -179,7 +169,12 @@ export default function Login({ onLogin }) {
       </div>
 
       {/* Right Panel — Login Form */}
-      <div className="login-form" style={{ width: 480, display: 'flex', alignItems: 'center', justifyContent: 'center', borderLeft: '1px solid #111', background: '#080808' }}>
+      <div className="login-form" style={{
+        width: 480, display: 'flex', alignItems: 'center', justifyContent: 'center', borderLeft: '1px solid #111', background: '#080808',
+        transition: 'opacity 0.4s ease, transform 0.4s ease',
+        opacity: transitioning ? 0 : 1,
+        transform: transitioning ? 'scale(1.03) translateY(-10px)' : 'scale(1) translateY(0)',
+      }}>
         <div style={{ width: '100%', maxWidth: 360, padding: '0 40px' }}>
 
           <div style={{ marginBottom: 32 }}>
