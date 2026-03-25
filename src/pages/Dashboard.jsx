@@ -11,6 +11,7 @@ export default function Dashboard({ user }) {
     bookings: fetchBookings, logs: fetchShiftLogs, complaints: fetchComplaints,
     maintenance: fetchMaintenance, requests: fetchAllOpenRequests,
     revenue: fetchRevenueInsights, events: () => fetchEvents(7), housekeeping: fetchHousekeeping,
+    rooms: async () => { const { data } = await supabase.from('rooms').select('*'); return data || [] },
   })
   const [taxiMinutes, setTaxiMinutes] = useState({})
   const [confirm, setConfirm] = useState(null)
@@ -40,7 +41,8 @@ export default function Dashboard({ user }) {
   const adr = occupied > 0 ? Math.round(todayRevenue / occupied) : 0
   const revpar = occupied > 0 ? Math.round((adr * occ) / 100) : 0
   const cleaning = hk.filter(h => h.status === 'cleaning' || h.status === 'dirty').length
-  const freeRooms = totalRooms - occupied - cleaning
+  const blockedRooms = (data.rooms || []).filter(r => r.blocked_reason).length
+  const freeRooms = totalRooms - occupied - cleaning - blockedRooms
 
   // Revenue 7 Tage — calculate from bookings per day
   const rev7 = Array.from({ length: 7 }, (_, i) => {
@@ -204,7 +206,8 @@ export default function Dashboard({ user }) {
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}><div style={{ width: 10, height: 10, borderRadius: '50%', background: '#10b981' }} /><span style={{ fontSize: 12, color: 'var(--textSec)' }}>Belegt {occupied}</span></div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}><div style={{ width: 10, height: 10, borderRadius: '50%', background: 'var(--border)' }} /><span style={{ fontSize: 12, color: 'var(--textSec)' }}>Frei {totalRooms - occupied}</span></div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}><div style={{ width: 10, height: 10, borderRadius: '50%', background: 'var(--border)' }} /><span style={{ fontSize: 12, color: 'var(--textSec)' }}>Frei {freeRooms}</span></div>
+              {blockedRooms > 0 && <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}><div style={{ width: 10, height: 10, borderRadius: '50%', background: '#ef4444' }} /><span style={{ fontSize: 12, color: '#ef4444' }}>Gesperrt {blockedRooms}</span></div>}
             </div>
           </div>
         </Card>

@@ -499,7 +499,7 @@ export default function Buchungen() {
 
                 <label style={s.label}>Zimmer</label>
                 <select style={s.input} value={editData.room || ''} onChange={e => setEditData(p => ({ ...p, room: e.target.value }))}>
-                  {rooms.map(r => <option key={r.room_number} value={r.room_number}>{r.room_number} — {r.type}</option>)}
+                  {rooms.filter(r => !r.blocked_reason).map(r => <option key={r.room_number} value={r.room_number}>{r.room_number} — {r.type}</option>)}
                 </select>
 
                 <label style={s.label}>Check-in</label>
@@ -589,7 +589,8 @@ export default function Buchungen() {
             <label style={s.label}>Zimmer</label>
             <select style={s.input} value={newBooking.room} onChange={e => setNewBooking(p => ({ ...p, room: e.target.value }))}>
               <option value="">Zimmer wählen...</option>
-              {rooms.map(r => <option key={r.room_number} value={r.room_number}>{r.room_number} — {r.type}</option>)}
+              {rooms.filter(r => !r.blocked_reason).map(r => <option key={r.room_number} value={r.room_number}>{r.room_number} — {r.type}</option>)}
+              {rooms.filter(r => r.blocked_reason).map(r => <option key={r.room_number} value={r.room_number} disabled>{r.room_number} — GESPERRT ({r.blocked_reason})</option>)}
             </select>
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>

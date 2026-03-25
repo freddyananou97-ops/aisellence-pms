@@ -282,10 +282,13 @@ export default function Housekeeping() {
           const checkout = isCheckoutToday(item.room_number)
           const checkedOut = isCheckedOut(item.room_number)
           const bookingNotes = getBookingNotes(item.room_number)
+          const roomData = rooms.find(r => String(r.room_number) === String(item.room_number))
+          const isBlocked = roomData?.blocked_reason
           return (
             <div key={item.id} style={{
-              background: 'var(--bgCard)', border: '1px solid var(--borderLight)', borderRadius: 12, overflow: 'hidden',
+              background: 'var(--bgCard)', border: isBlocked ? '1px solid rgba(239,68,68,0.3)' : '1px solid var(--borderLight)', borderRadius: 12, overflow: 'hidden',
               boxShadow: checkout ? '0 0 0 2px rgba(245,158,11,0.4)' : checkedOut ? '0 0 0 2px rgba(239,68,68,0.4)' : 'none',
+              opacity: isBlocked ? 0.5 : 1,
             }}>
               {/* Color bar */}
               <div style={{ height: 4, background: st.color }} />
@@ -299,6 +302,7 @@ export default function Housekeeping() {
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
                     <span style={{ fontSize: 10, padding: '3px 8px', borderRadius: 6, background: st.bg, color: st.color, fontWeight: 500 }}>{st.label}</span>
+                    {isBlocked && <span style={{ fontSize: 9, padding: '2px 6px', borderRadius: 4, background: 'rgba(239,68,68,0.1)', color: '#ef4444', fontWeight: 500 }}>Gesperrt</span>}
                     {checkout && !checkedOut && <span style={{ fontSize: 9, padding: '2px 6px', borderRadius: 4, background: 'rgba(245,158,11,0.1)', color: '#f59e0b', fontWeight: 500 }}>Abreise heute</span>}
                     {checkedOut && <span style={{ fontSize: 9, padding: '2px 6px', borderRadius: 4, background: 'rgba(239,68,68,0.1)', color: '#ef4444', fontWeight: 500 }}>Ausgecheckt — vorbereiten!</span>}
                   </div>

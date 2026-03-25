@@ -111,7 +111,8 @@ export default function Zimmer() {
   const floorRooms = rooms.filter(r => r.floor === floor)
 
   const floorOccupied = floorRooms.filter(r => !!getBooking(r.room_number)).length
-  const floorFree = floorRooms.length - floorOccupied
+  const floorBlocked = floorRooms.filter(r => r.blocked_reason).length
+  const floorFree = floorRooms.length - floorOccupied - floorBlocked
 
   if (loading) return <div style={s.content}><div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '60vh', color: 'var(--textMuted)' }}>Laden...</div></div>
 
@@ -135,6 +136,7 @@ export default function Zimmer() {
         ))}
         <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 12, fontSize: 11, color: 'var(--textMuted)' }}>
           <span><span style={{ color: '#10b981', fontWeight: 600 }}>{floorOccupied}</span> belegt</span>
+          {floorBlocked > 0 && <span><span style={{ color: '#ef4444', fontWeight: 600 }}>{floorBlocked}</span> gesperrt</span>}
           <span><span style={{ fontWeight: 600 }}>{floorFree}</span> frei</span>
         </div>
       </div>
@@ -146,13 +148,14 @@ export default function Zimmer() {
           const hk = getHK(room.room_number)
           const hkColor = hk ? HK_COLORS[hk.status] || '#333' : '#333'
           const checkout = isCheckoutToday(room.room_number)
+          const isBlocked = !!room.blocked_reason
           return (
             <div key={room.id} onClick={() => openRoom(room)} style={{
-              background: 'var(--bgCard)', border: '1px solid var(--borderLight)', borderRadius: 12, overflow: 'hidden', cursor: 'pointer',
-              boxShadow: checkout ? '0 0 0 2px rgba(245,158,11,0.4)' : 'none',
+              background: 'var(--bgCard)', border: isBlocked ? '2px solid #ef4444' : '1px solid var(--borderLight)', borderRadius: 12, overflow: 'hidden', cursor: 'pointer',
+              boxShadow: checkout ? '0 0 0 2px rgba(245,158,11,0.4)' : 'none', opacity: isBlocked ? 0.75 : 1,
             }}>
               {/* Top bar */}
-              <div style={{ height: 4, background: booking ? '#10b981' : '#333' }} />
+              <div style={{ height: 4, background: isBlocked ? '#ef4444' : booking ? '#10b981' : '#333' }} />
               <div style={{ padding: '14px 16px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 6 }}>
                   <div>
@@ -160,7 +163,7 @@ export default function Zimmer() {
                     <div style={{ fontSize: 10, color: 'var(--textDim)' }}>{TYPE_LABELS[room.type] || room.type}</div>
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
-                    <span style={{ fontSize: 10, padding: '3px 8px', borderRadius: 6, background: booking ? 'rgba(16,185,129,0.08)' : 'rgba(107,114,128,0.08)', color: booking ? '#10b981' : '#6b7280', fontWeight: 500 }}>{booking ? 'Belegt' : 'Frei'}</span>
+                    <span style={{ fontSize: 10, padding: '3px 8px', borderRadius: 6, background: isBlocked ? 'rgba(239,68,68,0.08)' : booking ? 'rgba(16,185,129,0.08)' : 'rgba(107,114,128,0.08)', color: isBlocked ? '#ef4444' : booking ? '#10b981' : '#6b7280', fontWeight: 500 }}>{isBlocked ? 'Gesperrt' : booking ? 'Belegt' : 'Frei'}</span>
                     {hk && <span style={{ fontSize: 8, padding: '2px 6px', borderRadius: 4, background: `${hkColor}10`, color: hkColor }}>{HK_LABELS[hk.status]}</span>}
                     {checkout && <span style={{ fontSize: 8, padding: '2px 6px', borderRadius: 4, background: 'rgba(245,158,11,0.1)', color: '#f59e0b' }}>Abreise heute</span>}
                   </div>
@@ -174,6 +177,11 @@ export default function Zimmer() {
                     </div>
                     <div style={{ fontSize: 10, color: 'var(--textDim)' }}>{booking.check_in} → {booking.check_out} · {nights(booking.check_in, booking.check_out)}N</div>
                     {booking.notes && <div style={{ fontSize: 10, color: '#f59e0b', marginTop: 4, padding: '3px 6px', background: 'rgba(245,158,11,0.06)', borderRadius: 4 }}>{booking.notes}</div>}
+                  </div>
+                ) : isBlocked ? (
+                  <div>
+                    <div style={{ fontSize: 12, color: '#ef4444', fontWeight: 500 }}>{room.blocked_reason}</div>
+                    <div style={{ fontSize: 10, color: 'var(--textDim)', marginTop: 2 }}>{room.blocked_until ? `Bis ${new Date(room.blocked_until + 'T00:00').toLocaleDateString('de-DE')}` : 'Vorläufig gesperrt'}</div>
                   </div>
                 ) : (
                   <div style={{ fontSize: 11, color: 'var(--textDim)' }}>Kein Gast</div>
