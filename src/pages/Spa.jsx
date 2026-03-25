@@ -26,22 +26,28 @@ export default function Spa() {
   const [showBook, setShowBook] = useState(null)
   const [selected, setSelected] = useState(null)
   const [confirm, setConfirm] = useState(null)
+  const [listBookings, setListBookings] = useState([])
+  const [listSearch, setListSearch] = useState('')
+  const [listStatus, setListStatus] = useState('alle')
+  const [listFrom, setListFrom] = useState('')
+  const [listTo, setListTo] = useState('')
 
   const todayStr = new Date().toISOString().split('T')[0]
 
   const load = useCallback(async () => {
     const weekStart = new Date(date); weekStart.setDate(weekStart.getDate() - weekStart.getDay() + 1)
     const weekEnd = new Date(weekStart); weekEnd.setDate(weekEnd.getDate() + 6)
-    const [t, b, rm, th, hb, ab] = await Promise.all([
+    const [t, b, rm, th, hb, ab, lb] = await Promise.all([
       fetchSpaTreatments(),
       fetchSpaBookings(date),
       supabase.from('spa_rooms').select('*').eq('active', true).order('sort_order'),
       supabase.from('spa_therapists').select('*').eq('active', true).order('name'),
       supabase.from('bookings').select('*').eq('status', 'checked_in'),
       supabase.from('spa_bookings').select('*').gte('date', weekStart.toISOString().split('T')[0]).lte('date', weekEnd.toISOString().split('T')[0]).order('time'),
+      supabase.from('spa_bookings').select('*').order('date', { ascending: false }).order('time', { ascending: false }).limit(200),
     ])
     setTreatments(t); setBookings(b); setSpaRooms(rm.data || []); setTherapists(th.data || [])
-    setHotelBookings(hb.data || []); setAllBookings(ab.data || []); setLoading(false)
+    setHotelBookings(hb.data || []); setAllBookings(ab.data || []); setListBookings(lb.data || []); setLoading(false)
   }, [date])
 
   useEffect(() => { load(); const u = subscribeToTable('spa_bookings', () => load()); return u }, [load])
@@ -154,7 +160,7 @@ export default function Spa() {
       {/* View Tabs + Date Nav */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
         <div style={{ display: 'flex', gap: 4 }}>
-          {[['tag', 'Tag'], ['woche', 'Woche']].map(([k, l]) => (
+          {[['tag', 'Tag'], ['woche', 'Woche'], ['buchungen', `Buchungen (${listBookings.length})`]].map(([k, l]) => (
             <button key={k} onClick={() => setView(k)} style={{
               padding: '6px 14px', borderRadius: 8, fontSize: 11, cursor: 'pointer', fontFamily: 'inherit',
               background: view === k ? 'var(--text)' : 'var(--bgCard)', color: view === k ? 'var(--bg)' : 'var(--textMuted)',
@@ -248,6 +254,68 @@ export default function Spa() {
           })}
         </div>
       )}
+
+      {/* ====== BUCHUNGEN LIST VIEW ====== */}
+      {view === 'buchungen' && (() => {
+        const filtered = listBookings.filter(b => {
+          const q = listSearch.toLowerCase()
+          const matchSearch = !q || b.guest_name?.toLowerCase().includes(q)
+          const matchStatus = listStatus === 'alle' || b.status === listStatus
+          const matchFrom = !listFrom || b.date >= listFrom
+          const matchTo = !listTo || b.date <= listTo
+          return matchSearch && matchStatus && matchFrom && matchTo
+        })
+        return (
+          <div>
+            {/* Filters */}
+            <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
+              <input value={listSearch} onChange={e => setListSearch(e.target.value)} placeholder="Gastname suchen..."
+                style={{ flex: 1, minWidth: 160, padding: '8px 12px', background: 'var(--bgCard)', border: '1px solid var(--borderLight)', borderRadius: 8, fontSize: 12, color: 'var(--text)', outline: 'none', fontFamily: 'inherit' }} />
+              <input type="date" value={listFrom} onChange={e => setListFrom(e.target.value)} style={{ padding: '8px 10px', background: 'var(--bgCard)', border: '1px solid var(--borderLight)', borderRadius: 8, fontSize: 11, color: 'var(--text)', fontFamily: 'inherit' }} />
+              <span style={{ fontSize: 11, color: 'var(--textDim)', alignSelf: 'center' }}>bis</span>
+              <input type="date" value={listTo} onChange={e => setListTo(e.target.value)} style={{ padding: '8px 10px', background: 'var(--bgCard)', border: '1px solid var(--borderLight)', borderRadius: 8, fontSize: 11, color: 'var(--text)', fontFamily: 'inherit' }} />
+              {[['alle', 'Alle'], ['confirmed', 'Bestätigt'], ['completed', 'Abgeschl.'], ['cancelled', 'Storniert']].map(([k, l]) => (
+                <button key={k} onClick={() => setListStatus(k)} style={{
+                  padding: '6px 12px', borderRadius: 8, fontSize: 10, cursor: 'pointer', fontFamily: 'inherit',
+                  background: listStatus === k ? 'var(--text)' : 'var(--bgCard)', color: listStatus === k ? 'var(--bg)' : 'var(--textMuted)',
+                  border: `1px solid ${listStatus === k ? 'var(--text)' : 'var(--borderLight)'}`,
+                }}>{l}</button>
+              ))}
+            </div>
+
+            {/* Table */}
+            <div style={{ background: 'var(--bgCard)', border: '1px solid var(--borderLight)', borderRadius: 12, overflow: 'hidden' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '80px 50px 1fr 1fr 100px 90px 80px 60px', padding: '10px 16px', borderBottom: '1px solid var(--border)', gap: 8 }}>
+                {['Datum', 'Zeit', 'Gast', 'Behandlung', 'Raum', 'Therapeut', 'Status', 'Preis'].map(h => (
+                  <span key={h} style={{ fontSize: 10, color: 'var(--textDim)', textTransform: 'uppercase', letterSpacing: 0.5, fontWeight: 500 }}>{h}</span>
+                ))}
+              </div>
+              {filtered.length === 0 ? (
+                <div style={{ padding: 24, textAlign: 'center', color: 'var(--textDim)', fontSize: 12 }}>Keine Buchungen gefunden</div>
+              ) : filtered.map(b => {
+                const sc = STATUS_CONF[b.status] || STATUS_CONF.confirmed
+                return (
+                  <div key={b.id} onClick={() => setSelected(b)} style={{ display: 'grid', gridTemplateColumns: '80px 50px 1fr 1fr 100px 90px 80px 60px', padding: '10px 16px', borderBottom: '1px solid var(--border)', gap: 8, cursor: 'pointer', alignItems: 'center' }}>
+                    <span style={{ fontSize: 11, color: 'var(--textMuted)' }}>{b.date ? new Date(b.date + 'T00:00').toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' }) : '—'}</span>
+                    <span style={{ fontSize: 11, color: 'var(--textSec)' }}>{b.time || '—'}</span>
+                    <span style={{ fontSize: 12, color: 'var(--text)', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{b.guest_name}{b.room_number ? <span style={{ fontSize: 9, color: 'var(--textDim)', marginLeft: 4 }}>Zi.{b.room_number}</span> : ''}</span>
+                    <span style={{ fontSize: 11, color: 'var(--textSec)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{b.treatment}</span>
+                    <span style={{ fontSize: 10, color: 'var(--textMuted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{rooms.find(r => (r.id || r.name) === b.room)?.name || b.room}</span>
+                    <span style={{ fontSize: 10, color: 'var(--textMuted)' }}>{b.therapist_name || '—'}</span>
+                    <span style={{ fontSize: 9, padding: '3px 6px', borderRadius: 4, background: sc.bg, color: sc.color, fontWeight: 500, textAlign: 'center' }}>{sc.label}</span>
+                    <span style={{ fontSize: 11, color: 'var(--text)', fontWeight: 500 }}>{parseFloat(b.price || 0).toFixed(0)}€</span>
+                  </div>
+                )
+              })}
+            </div>
+            {filtered.length > 0 && (
+              <div style={{ display: 'flex', justifyContent: 'flex-end', padding: '8px 0', fontSize: 11, color: 'var(--textMuted)' }}>
+                {filtered.length} Buchungen · {filtered.reduce((s, b) => s + (parseFloat(b.price) || 0), 0).toFixed(0)}€ Umsatz
+              </div>
+            )}
+          </div>
+        )
+      })()}
 
       {/* Treatment Catalog */}
       {treatments.length > 0 && (
