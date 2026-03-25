@@ -16,8 +16,14 @@ export default function Dashboard({ user }) {
   const [confirm, setConfirm] = useState(null)
   const [clock, setClock] = useState(new Date())
   const { notify } = useNotifications('dashboard')
+  const [weather, setWeather] = useState(null)
 
   useEffect(() => { const iv = setInterval(() => setClock(new Date()), 1000); return () => clearInterval(iv) }, [])
+
+  useEffect(() => {
+    fetch('https://api.open-meteo.com/v1/forecast?latitude=48.7665&longitude=11.4258&current=temperature_2m,weathercode,windspeed_10m&daily=temperature_2m_max,temperature_2m_min,weathercode,precipitation_probability_max&timezone=Europe/Berlin&forecast_days=7')
+      .then(r => r.json()).then(d => setWeather(d)).catch(() => {})
+  }, [])
 
   const today = new Date()
   const todayStr = today.toISOString().split('T')[0]
@@ -283,29 +289,40 @@ export default function Dashboard({ user }) {
             )
           })}
         </Card>
-        <Card title="Wetter Ingolstadt" extra="7 Tage">
-          <div style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '12px 16px', borderBottom: '1px solid var(--border)' }}>
-            <div style={{ fontSize: 36, fontWeight: 300, color: 'var(--text,#fff)' }}>12°</div>
-            <div>
-              <div style={{ fontSize: 13, color: 'var(--textSec,#ccc)' }}>Bewölkt</div>
-              <div style={{ fontSize: 10, color: 'var(--textMuted,#888)', marginTop: 2 }}>Wind: 19-29 km/h · Regen: 10%</div>
-              <div style={{ fontSize: 10, color: 'var(--textDim,#555)', marginTop: 2 }}>Sonnenaufgang 06:13 · Untergang 18:28</div>
-            </div>
-          </div>
-          <div style={{ display: 'flex', gap: 4, padding: '10px 16px 14px' }}>
-            {[['So','12°','☁️','10%'],['Mo','13°','🌤','10%'],['Di','15°','⛅','10%'],['Mi','14°','🌧','35%'],['Do','7°','🌨','40%'],['Fr','10°','☁️','20%'],['Sa','13°','🌤','15%']].map(([d,t,icon,rain],i) =>
-              <div key={i} style={{ flex: 1, textAlign: 'center', background: i === 0 ? 'rgba(255,255,255,0.03)' : 'var(--bgCard,#111)', borderRadius: 8, padding: '8px 4px', border: i === 0 ? '1px solid var(--borderLight,#222)' : '1px solid transparent' }}>
-                <div style={{ fontSize: 9, color: i === 0 ? 'var(--text,#fff)' : 'var(--textDim,#555)', fontWeight: i === 0 ? 500 : 400 }}>{d}</div>
-                <div style={{ fontSize: 16, margin: '4px 0' }}>{icon}</div>
-                <div style={{ fontSize: 12, color: 'var(--textSec,#ccc)', fontWeight: 500 }}>{t}</div>
-                <div style={{ fontSize: 8, color: parseInt(rain) > 20 ? '#3b82f6' : 'var(--textDim,#444)', marginTop: 2 }}>{rain}</div>
+        <Card title="Wetter Ingolstadt" extra={weather ? '7 Tage' : '...'}>
+          {weather && weather.current ? (() => {
+            const wc = weather.current.weathercode
+            const wLabel = wc <= 1 ? 'Klar' : wc <= 3 ? 'Bewölkt' : wc <= 48 ? 'Nebel' : wc <= 55 ? 'Nieselregen' : wc <= 65 ? 'Regen' : wc <= 75 ? 'Schnee' : wc <= 82 ? 'Regenschauer' : wc <= 86 ? 'Schneeschauer' : 'Gewitter'
+            const wIcon = wc <= 1 ? '☀️' : wc <= 3 ? '⛅' : wc <= 48 ? '🌫️' : wc <= 55 ? '🌦️' : wc <= 65 ? '🌧️' : wc <= 75 ? '🌨️' : wc <= 82 ? '🌦️' : wc <= 86 ? '🌨️' : '⛈️'
+            return <>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '12px 16px', borderBottom: '1px solid var(--border)' }}>
+                <div style={{ fontSize: 36, fontWeight: 300, color: 'var(--text,#fff)' }}>{Math.round(weather.current.temperature_2m)}°</div>
+                <div>
+                  <div style={{ fontSize: 13, color: 'var(--textSec,#ccc)' }}>{wIcon} {wLabel}</div>
+                  <div style={{ fontSize: 10, color: 'var(--textMuted,#888)', marginTop: 2 }}>Wind: {Math.round(weather.current.windspeed_10m)} km/h</div>
+                </div>
               </div>
-            )}
-          </div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 16px 10px', fontSize: 9, color: 'var(--textDim,#333)' }}>
-            <span>Quelle: Brightsky API</span>
-            <span>Achtung: Schneefall am Donnerstag möglich</span>
-          </div>
+              <div style={{ display: 'flex', gap: 4, padding: '10px 16px 14px' }}>
+                {weather.daily.time.map((day, i) => {
+                  const dc = weather.daily.weathercode[i]
+                  const di = dc <= 1 ? '☀️' : dc <= 3 ? '⛅' : dc <= 48 ? '🌫️' : dc <= 55 ? '🌦️' : dc <= 65 ? '🌧️' : dc <= 75 ? '🌨️' : dc <= 82 ? '🌦️' : dc <= 86 ? '🌨️' : '⛈️'
+                  const rain = weather.daily.precipitation_probability_max?.[i] ?? 0
+                  const isToday = day === new Date().toISOString().split('T')[0]
+                  return (
+                    <div key={day} style={{ flex: 1, textAlign: 'center', background: isToday ? 'rgba(255,255,255,0.03)' : 'var(--bgCard,#111)', borderRadius: 8, padding: '8px 4px', border: isToday ? '1px solid var(--borderLight,#222)' : '1px solid transparent' }}>
+                      <div style={{ fontSize: 9, color: isToday ? 'var(--text,#fff)' : 'var(--textDim,#555)', fontWeight: isToday ? 500 : 400 }}>{new Date(day + 'T00:00').toLocaleDateString('de-DE', { weekday: 'short' }).slice(0, 2)}</div>
+                      <div style={{ fontSize: 16, margin: '4px 0' }}>{di}</div>
+                      <div style={{ fontSize: 12, color: 'var(--textSec,#ccc)', fontWeight: 500 }}>{Math.round(weather.daily.temperature_2m_max[i])}°</div>
+                      <div style={{ fontSize: 8, color: rain > 20 ? '#3b82f6' : 'var(--textDim,#444)', marginTop: 2 }}>{rain}%</div>
+                    </div>
+                  )
+                })}
+              </div>
+              <div style={{ padding: '6px 16px 10px', fontSize: 9, color: 'var(--textDim,#333)' }}>Quelle: Open-Meteo API · Live</div>
+            </>
+          })() : (
+            <div style={{ padding: '24px 16px', textAlign: 'center', color: 'var(--textDim)', fontSize: 12 }}>Wetterdaten werden geladen...</div>
+          )}
         </Card>
       </div>
 
