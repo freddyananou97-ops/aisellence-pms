@@ -26,6 +26,7 @@ export default function Spa() {
   const [showBook, setShowBook] = useState(null)
   const [selected, setSelected] = useState(null)
   const [confirm, setConfirm] = useState(null)
+  const [pendingCharge, setPendingCharge] = useState(null) // spa booking awaiting signature
   const [listBookings, setListBookings] = useState([])
   const [listSearch, setListSearch] = useState('')
   const [listStatus, setListStatus] = useState('alle')
@@ -110,14 +111,42 @@ export default function Spa() {
       setConfirm({ title: 'Kein Zimmer', message: 'Diese Buchung ist nicht mit einem Hotelzimmer verknüpft.', confirmLabel: 'OK', confirmColor: '#3b82f6', onConfirm: () => setConfirm(null) })
       return
     }
-    await supabase.from('service_requests').insert({
-      room: booking.room_number, guest_name: booking.guest_name,
-      category: 'spa', request_details: `Spa: ${booking.treatment} (${booking.duration}min)`,
-      status: 'delivered', order_total: booking.price || 0, resolved_at: new Date().toISOString(),
-    })
-    await supabase.from('spa_bookings').update({ payment_status: 'charged_to_room' }).eq('id', booking.id)
-    setConfirm({ title: 'Auf Zimmer gebucht', message: `${(booking.price || 0).toFixed(2)}€ auf Zimmer ${booking.room_number} gebucht.`, confirmLabel: 'OK', confirmColor: '#10b981', onConfirm: () => { setConfirm(null); setSelected(null); load() } })
+    // Create guest_display_session for signature
+    const expiresAt = new Date(Date.now() + 30 * 60 * 1000).toISOString()
+    const { data: sess } = await supabase.from('guest_display_sessions').insert({
+      type: 'invoice', status: 'active', room: booking.room_number,
+      guest_name: booking.guest_name, booking_id: booking.booking_id || null,
+      data: {
+        room_total: 0, nights: 0, items: [{ type: 'Spa', details: `${booking.treatment} (${booking.duration}min)`, amount: parseFloat(booking.price) || 0 }],
+        spa_booking_id: booking.id, charge_type: 'spa_to_room',
+      },
+      created_at: new Date().toISOString(), expires_at: expiresAt,
+    }).select().single()
+
+    setPendingCharge({ spaBooking: booking, sessionId: sess?.id })
+    setSelected(null)
   }
+
+  // Listen for signature on pending charge
+  useEffect(() => {
+    if (!pendingCharge?.sessionId) return
+    const channel = supabase.channel(`spa-charge-${pendingCharge.sessionId}`)
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'guest_display_sessions', filter: `id=eq.${pendingCharge.sessionId}` }, async (payload) => {
+        if (payload.new.status === 'signed' || payload.new.status === 'paid') {
+          const booking = pendingCharge.spaBooking
+          // Now complete the charge
+          await supabase.from('service_requests').insert({
+            room: booking.room_number, guest_name: booking.guest_name,
+            category: 'spa', request_details: `Spa: ${booking.treatment} (${booking.duration}min)`,
+            status: 'delivered', order_total: booking.price || 0, resolved_at: new Date().toISOString(),
+          })
+          await supabase.from('spa_bookings').update({ payment_status: 'charged_to_room' }).eq('id', booking.id)
+          setPendingCharge(null)
+          setConfirm({ title: 'Auf Zimmer gebucht', message: `${(booking.price || 0).toFixed(2)}€ auf Zimmer ${booking.room_number} gebucht. Gast hat unterschrieben.`, confirmLabel: 'OK', confirmColor: '#10b981', onConfirm: () => { setConfirm(null); load() } })
+        }
+      }).subscribe()
+    return () => supabase.removeChannel(channel)
+  }, [pendingCharge]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const cancelBooking = (booking) => {
     setConfirm({
@@ -162,6 +191,23 @@ export default function Spa() {
         <div style={st.statBox}><div style={{ fontSize: 22, fontWeight: 600, color: 'var(--text)' }}>{todayStats.revenue.toFixed(0)}€</div><div style={{ fontSize: 10, color: 'var(--textMuted)' }}>Umsatz heute</div></div>
         <div style={st.statBox}><div style={{ fontSize: 22, fontWeight: 600, color: 'var(--text)' }}>{treatments.length}</div><div style={{ fontSize: 10, color: 'var(--textMuted)' }}>Behandlungen</div></div>
       </div>
+
+      {/* Pending Charge Banner */}
+      {pendingCharge && (
+        <div style={{ padding: '14px 20px', background: 'rgba(139,92,246,0.04)', border: '2px solid rgba(139,92,246,0.2)', borderRadius: 12, marginBottom: 12, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#8b5cf6', animation: 'pulse 1.5s ease-in-out infinite' }} />
+            <div>
+              <div style={{ fontSize: 13, color: '#8b5cf6', fontWeight: 600 }}>Warte auf Unterschrift — Zimmer {pendingCharge.spaBooking.room_number}</div>
+              <div style={{ fontSize: 11, color: 'var(--textMuted)' }}>{pendingCharge.spaBooking.guest_name} · {pendingCharge.spaBooking.treatment} · {parseFloat(pendingCharge.spaBooking.price || 0).toFixed(2)}€</div>
+            </div>
+          </div>
+          <button onClick={async () => {
+            if (pendingCharge.sessionId) await supabase.from('guest_display_sessions').update({ status: 'waiting' }).eq('id', pendingCharge.sessionId)
+            setPendingCharge(null)
+          }} style={{ padding: '6px 14px', borderRadius: 6, fontSize: 10, cursor: 'pointer', fontFamily: 'inherit', background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)', color: '#ef4444' }}>Abbrechen</button>
+        </div>
+      )}
 
       {/* View Tabs + Date Nav */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
