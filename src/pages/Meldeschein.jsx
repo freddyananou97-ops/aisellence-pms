@@ -52,11 +52,22 @@ export default function Meldeschein() {
   }, [])
 
   const activeSession = sessions.find(s => s.status === 'active')
+  const cashPendingSessions = sessions.filter(s => s.status === 'awaiting_cash')
+
+  const confirmCashPayment = async (sess) => {
+    await supabase.from('guest_display_sessions').update({ status: 'paid' }).eq('id', sess.id)
+    if (sess.booking_id) {
+      await supabase.from('bookings').update({ status: 'checked_out', payment_method: 'Barzahlung', checked_out_at: new Date().toISOString() }).eq('booking_id', sess.booking_id)
+    }
+    load()
+  }
 
   const getSessionStatus = (s) => {
     if (s.status === 'active') return { label: 'Aktiv — Warte auf Gast...', color: '#f59e0b', pulse: true }
+    if (s.status === 'awaiting_cash') return { label: 'Barzahlung ausstehend', color: '#f59e0b', pulse: true }
     if (s.status === 'completed') return { label: 'Meldeschein eingegangen', color: '#10b981', pulse: false }
     if (s.status === 'signed') return { label: 'Rechnung unterschrieben', color: '#10b981', pulse: false }
+    if (s.status === 'paid') return { label: 'Bezahlt', color: '#10b981', pulse: false }
     if (s.status === 'waiting') return { label: 'Wartet', color: '#6b7280', pulse: false }
     return { label: s.status, color: '#6b7280', pulse: false }
   }
@@ -149,6 +160,27 @@ export default function Meldeschein() {
           <button onClick={() => cancelSession(activeSession.id)} style={{ padding: '6px 14px', borderRadius: 6, fontSize: 10, cursor: 'pointer', fontFamily: 'inherit', background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)', color: '#ef4444' }}>Abbrechen</button>
         </div>
       )}
+
+      {/* Cash Payment Pending Banner */}
+      {cashPendingSessions.map(sess => (
+        <div key={sess.id} style={{ padding: '16px 20px', background: 'rgba(245,158,11,0.06)', border: '2px solid rgba(245,158,11,0.3)', borderRadius: 12, marginBottom: 12, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <div style={{ width: 12, height: 12, borderRadius: '50%', background: '#f59e0b', animation: 'pulse 1.5s ease-in-out infinite' }} />
+            <div>
+              <div style={{ fontSize: 14, color: '#f59e0b', fontWeight: 600 }}>Barzahlung ausstehend — Zimmer {sess.room}</div>
+              <div style={{ fontSize: 12, color: 'var(--textMuted)', marginTop: 2 }}>
+                {sess.guest_name} · {(() => {
+                  const d = sess.data || {}
+                  const rt = parseFloat(d.room_total) || 0
+                  const ct = (d.items || []).reduce((s, c) => s + (parseFloat(c.amount) || 0), 0)
+                  return (rt + ct).toFixed(2)
+                })()}€
+              </div>
+            </div>
+          </div>
+          <button onClick={() => confirmCashPayment(sess)} style={{ padding: '10px 20px', borderRadius: 8, border: 'none', background: '#10b981', color: '#fff', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' }}>Barzahlung erhalten & bestätigen</button>
+        </div>
+      ))}
 
       {/* Tabs */}
       <div style={{ display: 'flex', gap: 6, marginBottom: 16 }}>

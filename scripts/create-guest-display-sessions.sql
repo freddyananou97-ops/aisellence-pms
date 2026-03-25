@@ -2,7 +2,7 @@
 CREATE TABLE IF NOT EXISTS guest_display_sessions (
   id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
   type text NOT NULL CHECK (type IN ('checkin', 'invoice')),
-  status text NOT NULL DEFAULT 'waiting' CHECK (status IN ('waiting', 'active', 'completed', 'signed')),
+  status text NOT NULL DEFAULT 'waiting' CHECK (status IN ('waiting', 'active', 'completed', 'signed', 'awaiting_cash', 'paid')),
   room text NOT NULL,
   booking_id text,
   guest_name text NOT NULL,

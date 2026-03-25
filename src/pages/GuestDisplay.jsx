@@ -410,18 +410,31 @@ function InvoiceView({ session, onComplete }) {
   const grandTotal = roomTotal + chargesTotal
   const netto7 = roomTotal / 1.07; const mwst7 = roomTotal - netto7
   const netto19 = chargesTotal / 1.19; const mwst19 = chargesTotal - netto19
+
+  // Step flow: 'invoice' → 'payment' → 'waiting_cash' → done
+  const [step, setStep] = useState('invoice')
   const [signature, setSignature] = useState(null)
   const [submitting, setSubmitting] = useState(false)
   const [stripeUrl, setStripeUrl] = useState(null)
   const [stripeLoading, setStripeLoading] = useState(false)
   const [stripeError, setStripeError] = useState(null)
 
-  const handleSign = async () => {
+  const handleConfirm = async () => {
     if (!signature || submitting) return
     setSubmitting(true)
     await supabase.from('guest_display_sessions').update({ status: 'signed', signature }).eq('id', session.id)
     setSubmitting(false)
-    onComplete()
+
+    if (grandTotal <= 0) {
+      // No payment needed — complete immediately
+      if (session.booking_id) {
+        await supabase.from('bookings').update({ status: 'checked_out', payment_method: 'Keine Zahlung (0€)', checked_out_at: new Date().toISOString() }).eq('booking_id', session.booking_id)
+      }
+      await supabase.from('guest_display_sessions').update({ status: 'paid' }).eq('id', session.id)
+      onComplete()
+    } else {
+      setStep('payment')
+    }
   }
 
   const handleStripePayment = async () => {
@@ -442,107 +455,175 @@ function InvoiceView({ session, onComplete }) {
     setStripeLoading(false)
   }
 
-  return (
-    <div style={{ minHeight: '100vh', background: '#f8f9fa', padding: '32px 24px', overflowY: 'auto' }}>
-      <div style={{ maxWidth: 640, margin: '0 auto' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 32 }}>
-          <div>
-            <div style={{ fontSize: 20, fontWeight: 600, color: '#1a1a1a' }}>Maritim Hotel Ingolstadt</div>
-            <div style={{ fontSize: 11, color: '#6b7280', lineHeight: 1.6, marginTop: 4 }}>Am Congress Centrum 1 · 85049 Ingolstadt<br/>Tel: +49 841 49050</div>
-          </div>
-          <div style={{ textAlign: 'right' }}>
-            <div style={{ fontSize: 22, fontWeight: 300, color: '#1a1a1a' }}>Rechnung</div>
-            <div style={{ fontSize: 11, color: '#6b7280', marginTop: 4 }}>{new Date().toLocaleDateString('de-DE')}</div>
-          </div>
-        </div>
+  const handleCash = async () => {
+    // Set status to awaiting_cash so PMS gets notified
+    await supabase.from('guest_display_sessions').update({ status: 'awaiting_cash' }).eq('id', session.id)
+    setStep('waiting_cash')
+  }
 
-        <div style={{ background: '#fff', borderRadius: 12, padding: 20, border: '1px solid #e5e7eb', marginBottom: 24 }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-            {[['Gast', session.guest_name], ['Zimmer', session.room], ['Check-in', data.check_in || '—'], ['Check-out', data.check_out || '—']].map(([l, v]) => (
-              <div key={l} style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0' }}>
-                <span style={{ fontSize: 13, color: '#6b7280' }}>{l}</span>
-                <span style={{ fontSize: 13, color: '#1a1a1a', fontWeight: 500 }}>{v}</span>
+  // Listen for PMS confirming cash payment
+  useEffect(() => {
+    if (step !== 'waiting_cash') return
+    const channel = supabase.channel(`cash-confirm-${session.id}`)
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'guest_display_sessions', filter: `id=eq.${session.id}` }, (payload) => {
+        if (payload.new.status === 'paid') {
+          onComplete()
+        }
+      }).subscribe()
+    return () => supabase.removeChannel(channel)
+  }, [step, session.id, onComplete])
+
+  // Invoice + Signature view (Step 1)
+  if (step === 'invoice') {
+    return (
+      <div style={{ minHeight: '100vh', background: '#f8f9fa', padding: '32px 24px', overflowY: 'auto' }}>
+        <div style={{ maxWidth: 640, margin: '0 auto' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 32 }}>
+            <div>
+              <div style={{ fontSize: 20, fontWeight: 600, color: '#1a1a1a' }}>Maritim Hotel Ingolstadt</div>
+              <div style={{ fontSize: 11, color: '#6b7280', lineHeight: 1.6, marginTop: 4 }}>Am Congress Centrum 1 · 85049 Ingolstadt<br/>Tel: +49 841 49050</div>
+            </div>
+            <div style={{ textAlign: 'right' }}>
+              <div style={{ fontSize: 22, fontWeight: 300, color: '#1a1a1a' }}>Rechnung</div>
+              <div style={{ fontSize: 11, color: '#6b7280', marginTop: 4 }}>{new Date().toLocaleDateString('de-DE')}</div>
+            </div>
+          </div>
+
+          <div style={{ background: '#fff', borderRadius: 12, padding: 20, border: '1px solid #e5e7eb', marginBottom: 24 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+              {[['Gast', session.guest_name], ['Zimmer', session.room], ['Check-in', data.check_in || '—'], ['Check-out', data.check_out || '—']].map(([l, v]) => (
+                <div key={l} style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0' }}>
+                  <span style={{ fontSize: 13, color: '#6b7280' }}>{l}</span>
+                  <span style={{ fontSize: 13, color: '#1a1a1a', fontWeight: 500 }}>{v}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #e5e7eb', overflow: 'hidden', marginBottom: 24 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', padding: '12px 20px', borderBottom: '2px solid #1a1a1a' }}>
+              <span style={{ fontSize: 10, color: '#6b7280', textTransform: 'uppercase', letterSpacing: 0.5 }}>Position</span>
+              <span style={{ fontSize: 10, color: '#6b7280', textTransform: 'uppercase', letterSpacing: 0.5, textAlign: 'right' }}>Betrag</span>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', padding: '12px 20px', borderBottom: '1px solid #f3f4f6' }}>
+              <div><div style={{ fontSize: 14, color: '#1a1a1a' }}>Übernachtung ({data.nights || 1} Nächte)</div><div style={{ fontSize: 11, color: '#9ca3af' }}>Zimmer {session.room} · 7% MwSt</div></div>
+              <div style={{ fontSize: 14, color: '#1a1a1a', fontWeight: 500 }}>{roomTotal.toFixed(2)} €</div>
+            </div>
+            {items.map((item, i) => (
+              <div key={i} style={{ display: 'grid', gridTemplateColumns: '1fr auto', padding: '12px 20px', borderBottom: '1px solid #f3f4f6' }}>
+                <div><div style={{ fontSize: 14, color: '#1a1a1a' }}>{item.type}</div><div style={{ fontSize: 11, color: '#9ca3af' }}>{item.details || ''} · 19% MwSt</div></div>
+                <div style={{ fontSize: 14, color: '#1a1a1a', fontWeight: 500 }}>{parseFloat(item.amount).toFixed(2)} €</div>
               </div>
             ))}
+            <div style={{ padding: '16px 20px', borderTop: '2px solid #1a1a1a', background: '#fafafa' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
+                <span style={{ fontSize: 16, fontWeight: 600, color: '#1a1a1a' }}>Gesamtbetrag</span>
+                <span style={{ fontSize: 18, fontWeight: 600, color: '#1a1a1a' }}>{grandTotal.toFixed(2)} €</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: '#9ca3af' }}>
+                <span>Netto (7% MwSt: {mwst7.toFixed(2)} €)</span><span>{netto7.toFixed(2)} €</span>
+              </div>
+              {chargesTotal > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: '#9ca3af' }}>
+                <span>Netto (19% MwSt: {mwst19.toFixed(2)} €)</span><span>{netto19.toFixed(2)} €</span>
+              </div>}
+            </div>
           </div>
-        </div>
 
-        <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #e5e7eb', overflow: 'hidden', marginBottom: 24 }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', padding: '12px 20px', borderBottom: '2px solid #1a1a1a' }}>
-            <span style={{ fontSize: 10, color: '#6b7280', textTransform: 'uppercase', letterSpacing: 0.5 }}>Position</span>
-            <span style={{ fontSize: 10, color: '#6b7280', textTransform: 'uppercase', letterSpacing: 0.5, textAlign: 'right' }}>Betrag</span>
+          {/* Signature */}
+          <div style={{ background: '#fff', borderRadius: 16, padding: 24, border: '1px solid #e5e7eb', marginBottom: 24 }}>
+            <h2 style={{ fontSize: 15, fontWeight: 500, color: '#1a1a1a', margin: '0 0 4px' }}>Unterschrift</h2>
+            <p style={{ fontSize: 12, color: '#9ca3af', margin: '0 0 12px' }}>Hiermit bestätige ich den Erhalt und die Richtigkeit der Rechnung.</p>
+            <SignatureCanvas onSign={setSignature} label="Hier unterschreiben" />
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', padding: '12px 20px', borderBottom: '1px solid #f3f4f6' }}>
-            <div><div style={{ fontSize: 14, color: '#1a1a1a' }}>Übernachtung ({data.nights || 1} Nächte)</div><div style={{ fontSize: 11, color: '#9ca3af' }}>Zimmer {session.room} · 7% MwSt</div></div>
-            <div style={{ fontSize: 14, color: '#1a1a1a', fontWeight: 500 }}>{roomTotal.toFixed(2)} €</div>
-          </div>
-          {items.map((item, i) => (
-            <div key={i} style={{ display: 'grid', gridTemplateColumns: '1fr auto', padding: '12px 20px', borderBottom: '1px solid #f3f4f6' }}>
-              <div><div style={{ fontSize: 14, color: '#1a1a1a' }}>{item.type}</div><div style={{ fontSize: 11, color: '#9ca3af' }}>{item.details || ''} · 19% MwSt</div></div>
-              <div style={{ fontSize: 14, color: '#1a1a1a', fontWeight: 500 }}>{parseFloat(item.amount).toFixed(2)} €</div>
-            </div>
-          ))}
-          <div style={{ padding: '16px 20px', borderTop: '2px solid #1a1a1a', background: '#fafafa' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
-              <span style={{ fontSize: 16, fontWeight: 600, color: '#1a1a1a' }}>Gesamtbetrag</span>
-              <span style={{ fontSize: 18, fontWeight: 600, color: '#1a1a1a' }}>{grandTotal.toFixed(2)} €</span>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: '#9ca3af' }}>
-              <span>Netto (7% MwSt: {mwst7.toFixed(2)} €)</span><span>{netto7.toFixed(2)} €</span>
-            </div>
-            {chargesTotal > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: '#9ca3af' }}>
-              <span>Netto (19% MwSt: {mwst19.toFixed(2)} €)</span><span>{netto19.toFixed(2)} €</span>
-            </div>}
-          </div>
-        </div>
 
-        {/* Stripe Payment */}
-        <div style={{ background: '#fff', borderRadius: 16, padding: 24, border: '1px solid #e5e7eb', marginBottom: 24 }}>
-          <h2 style={{ fontSize: 15, fontWeight: 500, color: '#1a1a1a', margin: '0 0 4px' }}>Online bezahlen</h2>
-          <p style={{ fontSize: 12, color: '#9ca3af', margin: '0 0 16px' }}>Bezahlen Sie bequem mit Kreditkarte, Apple Pay oder Google Pay.</p>
+          <button disabled={!signature || submitting} onClick={handleConfirm} style={{
+            width: '100%', padding: 18, border: 'none', borderRadius: 14, fontSize: 16, fontWeight: 600,
+            cursor: signature && !submitting ? 'pointer' : 'default', fontFamily: 'inherit',
+            background: signature ? '#1a1a1a' : '#d1d5db', color: signature ? '#fff' : '#9ca3af', marginBottom: 32,
+          }}>
+            {submitting ? 'Wird verarbeitet...' : 'Rechnung bestätigen'}
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  // Payment method selection (Step 2)
+  if (step === 'payment') {
+    return (
+      <div style={{ minHeight: '100vh', background: '#f8f9fa', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 32 }}>
+        <div style={{ maxWidth: 480, width: '100%', textAlign: 'center' }}>
+          <div style={{ marginBottom: 32 }}>
+            <div style={{ fontSize: 14, color: '#6b7280', marginBottom: 4 }}>Zu zahlender Betrag</div>
+            <div style={{ fontSize: 42, fontWeight: 300, color: '#1a1a1a' }}>{grandTotal.toFixed(2)} €</div>
+            <div style={{ fontSize: 13, color: '#9ca3af', marginTop: 4 }}>{session.guest_name} · Zimmer {session.room}</div>
+          </div>
 
           {!stripeUrl ? (
-            <button disabled={stripeLoading} onClick={handleStripePayment} style={{
-              width: '100%', padding: 16, border: 'none', borderRadius: 12, fontSize: 15, fontWeight: 600,
-              cursor: stripeLoading ? 'default' : 'pointer', fontFamily: 'inherit',
-              background: '#635bff', color: '#fff',
-            }}>
-              {stripeLoading ? 'Zahlungslink wird erstellt...' : `Jetzt ${grandTotal.toFixed(2)} € bezahlen`}
-            </button>
+            <div style={{ display: 'flex', gap: 16, marginBottom: 24 }}>
+              {/* Cash */}
+              <button onClick={handleCash} style={{
+                flex: 1, padding: '32px 16px', background: '#fff', border: '2px solid #e5e7eb', borderRadius: 16,
+                cursor: 'pointer', fontFamily: 'inherit', textAlign: 'center',
+              }}>
+                <svg width={40} height={40} viewBox="0 0 24 24" fill="none" stroke="#10b981" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ display: 'block', margin: '0 auto 12px' }}><path d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8V6m0 8v2"/><circle cx="12" cy="12" r="9"/></svg>
+                <div style={{ fontSize: 18, fontWeight: 600, color: '#1a1a1a' }}>Bar</div>
+                <div style={{ fontSize: 12, color: '#9ca3af', marginTop: 4 }}>An der Rezeption</div>
+              </button>
+              {/* Card */}
+              <button disabled={stripeLoading} onClick={handleStripePayment} style={{
+                flex: 1, padding: '32px 16px', background: '#fff', border: '2px solid #e5e7eb', borderRadius: 16,
+                cursor: 'pointer', fontFamily: 'inherit', textAlign: 'center',
+              }}>
+                <svg width={40} height={40} viewBox="0 0 24 24" fill="none" stroke="#635bff" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ display: 'block', margin: '0 auto 12px' }}><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
+                <div style={{ fontSize: 18, fontWeight: 600, color: '#1a1a1a' }}>{stripeLoading ? '...' : 'Karte'}</div>
+                <div style={{ fontSize: 12, color: '#9ca3af', marginTop: 4 }}>Kredit-/Debitkarte</div>
+              </button>
+            </div>
           ) : (
-            <div style={{ textAlign: 'center' }}>
-              <QRCode value={stripeUrl} size={180} />
-              <div style={{ marginTop: 16 }}>
+            <div style={{ background: '#fff', borderRadius: 16, padding: 32, border: '1px solid #e5e7eb', marginBottom: 24 }}>
+              <h3 style={{ fontSize: 16, fontWeight: 500, color: '#1a1a1a', margin: '0 0 16px' }}>Kartenzahlung</h3>
+              <QRCode value={stripeUrl} size={200} />
+              <div style={{ marginTop: 20 }}>
                 <a href={stripeUrl} target="_blank" rel="noopener noreferrer" style={{
-                  display: 'inline-block', padding: '14px 28px', background: '#635bff', color: '#fff',
-                  borderRadius: 10, fontSize: 14, fontWeight: 600, textDecoration: 'none',
-                }}>
-                  Zur Bezahlung
-                </a>
+                  display: 'inline-block', padding: '14px 32px', background: '#635bff', color: '#fff',
+                  borderRadius: 12, fontSize: 15, fontWeight: 600, textDecoration: 'none',
+                }}>Jetzt bezahlen</a>
               </div>
-              <p style={{ fontSize: 11, color: '#9ca3af', marginTop: 8 }}>Oder QR-Code mit Ihrem Handy scannen</p>
+              <p style={{ fontSize: 12, color: '#9ca3af', marginTop: 12 }}>Oder scannen Sie den QR-Code mit Ihrem Handy</p>
             </div>
           )}
-          {stripeError && <div style={{ marginTop: 8, fontSize: 12, color: '#ef4444' }}>{stripeError}</div>}
+          {stripeError && <div style={{ fontSize: 13, color: '#ef4444', marginBottom: 16 }}>{stripeError}</div>}
         </div>
-
-        {/* Signature */}
-        <div style={{ background: '#fff', borderRadius: 16, padding: 24, border: '1px solid #e5e7eb', marginBottom: 24 }}>
-          <h2 style={{ fontSize: 15, fontWeight: 500, color: '#1a1a1a', margin: '0 0 4px' }}>Unterschrift</h2>
-          <p style={{ fontSize: 12, color: '#9ca3af', margin: '0 0 12px' }}>Hiermit bestätige ich den Erhalt und die Richtigkeit der Rechnung.</p>
-          <SignatureCanvas onSign={setSignature} label="Hier unterschreiben" />
-        </div>
-
-        <button disabled={!signature || submitting} onClick={handleSign} style={{
-          width: '100%', padding: 18, border: 'none', borderRadius: 14, fontSize: 16, fontWeight: 600,
-          cursor: signature && !submitting ? 'pointer' : 'default', fontFamily: 'inherit',
-          background: signature ? '#1a1a1a' : '#d1d5db', color: signature ? '#fff' : '#9ca3af', marginBottom: 32,
-        }}>
-          {submitting ? 'Wird gespeichert...' : 'Unterschreiben & Bestätigen'}
-        </button>
       </div>
-    </div>
-  )
+    )
+  }
+
+  // Waiting for cash confirmation (Step 3 — cash)
+  if (step === 'waiting_cash') {
+    return (
+      <div style={{ minHeight: '100vh', background: '#f8f9fa', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 32 }}>
+        <div style={{ maxWidth: 440, width: '100%', textAlign: 'center' }}>
+          <div style={{ width: 72, height: 72, borderRadius: '50%', background: 'rgba(245,158,11,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 24px' }}>
+            <svg width={36} height={36} viewBox="0 0 24 24" fill="none" stroke="#f59e0b" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8V6m0 8v2"/><circle cx="12" cy="12" r="9"/></svg>
+          </div>
+          <h2 style={{ fontSize: 22, fontWeight: 400, color: '#1a1a1a', margin: '0 0 8px' }}>Barzahlung</h2>
+          <p style={{ fontSize: 32, fontWeight: 300, color: '#1a1a1a', margin: '0 0 16px' }}>{grandTotal.toFixed(2)} €</p>
+          <p style={{ fontSize: 15, color: '#6b7280', lineHeight: 1.6 }}>
+            Bitte bezahlen Sie den Betrag an der Rezeption.<br/>
+            Wir bestätigen Ihre Zahlung hier automatisch.
+          </p>
+          <div style={{ marginTop: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+            <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#f59e0b', animation: 'pulse 1.5s ease-in-out infinite' }} />
+            <span style={{ fontSize: 13, color: '#f59e0b' }}>Warte auf Bestätigung von der Rezeption...</span>
+          </div>
+          <style>{`@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }`}</style>
+        </div>
+      </div>
+    )
+  }
+
+  return null
 }
 
 // ============================================================
