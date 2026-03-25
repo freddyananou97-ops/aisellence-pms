@@ -6,6 +6,7 @@ import { loadInvoiceData, openInvoicePDF } from '../lib/invoice'
 import { logAction } from '../lib/audit'
 import { exportCSV, todayStr as csvDate } from '../lib/export'
 import { openPrintPage, buildTable } from '../lib/print'
+import { createCheckoutSession, buildLineItems } from '../lib/stripe'
 import { prepareCheckoutItems, finalizeCheckout as doFinalizeCheckout } from '../lib/checkout'
 import ConfirmDialog from '../components/ConfirmDialog'
 
@@ -43,6 +44,8 @@ export default function Buchungen() {
   const [guestSearch, setGuestSearch] = useState('')
   const [guestDropdown, setGuestDropdown] = useState(false)
   const [cashPending, setCashPending] = useState([])
+  const [signedSessions, setSignedSessions] = useState([])
+  const [paymentChoice, setPaymentChoice] = useState(null) // session to choose payment for
   const [regForms, setRegForms] = useState([])
 
   const todayStr = new Date().toISOString().split('T')[0]
@@ -63,18 +66,42 @@ export default function Buchungen() {
 
   const hasMeldeschein = (bookingId) => bookingId && regForms.some(f => f.booking_id === bookingId && f.status === 'completed')
 
-  // Cash payment pending sessions
+  // Cash + signed session tracking
   useEffect(() => {
-    const loadCash = async () => { const { data } = await supabase.from('guest_display_sessions').select('*').eq('status', 'awaiting_cash'); setCashPending(data || []) }
-    loadCash()
-    const ch = supabase.channel('buchungen-cash').on('postgres_changes', { event: '*', schema: 'public', table: 'guest_display_sessions' }, () => loadCash()).subscribe()
+    const loadSessions = async () => {
+      const { data } = await supabase.from('guest_display_sessions').select('*').in('status', ['awaiting_cash', 'signed']).eq('type', 'invoice')
+      setCashPending((data || []).filter(s => s.status === 'awaiting_cash'))
+      setSignedSessions((data || []).filter(s => s.status === 'signed'))
+    }
+    loadSessions()
+    const ch = supabase.channel('buchungen-sessions').on('postgres_changes', { event: '*', schema: 'public', table: 'guest_display_sessions' }, () => loadSessions()).subscribe()
     return () => supabase.removeChannel(ch)
   }, [])
 
   const confirmCashPayment = async (sess) => {
     await supabase.from('guest_display_sessions').update({ status: 'paid' }).eq('id', sess.id)
     if (sess.booking_id) await supabase.from('bookings').update({ status: 'checked_out', payment_method: 'Barzahlung', checked_out_at: new Date().toISOString() }).eq('booking_id', sess.booking_id)
-    setCashPending(prev => prev.filter(s => s.id !== sess.id)); load()
+    logAction('payment_cash', 'booking', sess.booking_id, { guest: sess.guest_name, room: sess.room })
+    setCashPending(prev => prev.filter(s => s.id !== sess.id)); setPaymentChoice(null); load()
+  }
+
+  const handlePaymentCard = async (sess) => {
+    try {
+      const d = sess.data || {}
+      const lineItems = buildLineItems({ roomTotal: parseFloat(d.room_total) || 0, nights: d.nights, room: sess.room, charges: d.items || [] })
+      const origin = window.location.origin
+      const { url, id } = await createCheckoutSession({
+        lineItems, metadata: { booking_id: sess.booking_id || '', guest_name: sess.guest_name, room: sess.room, session_id: sess.id },
+        successUrl: `${origin}/guest-display?payment=success&gds=${sess.id}`,
+        cancelUrl: `${origin}/guest-display?payment=cancelled`,
+      })
+      // Send Stripe URL to Guest Display via session data update
+      await supabase.from('guest_display_sessions').update({ status: 'payment_pending', data: { ...d, stripe_url: url, stripe_session_id: id } }).eq('id', sess.id)
+      setPaymentChoice(null)
+      setConfirm({ title: 'Kartenzahlung gesendet', message: `QR-Code wird auf dem Gast-Display angezeigt.`, confirmLabel: 'OK', confirmColor: '#10b981', onConfirm: () => setConfirm(null) })
+    } catch (e) {
+      setConfirm({ title: 'Fehler', message: e.message, confirmLabel: 'OK', confirmColor: '#ef4444', onConfirm: () => setConfirm(null) })
+    }
   }
 
   useModalClose(!!selected, () => { setSelected(null); setEditing(false) })
@@ -278,6 +305,27 @@ export default function Buchungen() {
       </div>
 
       {/* LIST VIEW */}
+      {/* Signed Session Banners — Guest signed, choose payment */}
+      {signedSessions.map(sess => {
+        const d = sess.data || {}
+        const total = ((parseFloat(d.room_total) || 0) + (d.items || []).reduce((s, c) => s + (parseFloat(c.amount) || 0), 0)).toFixed(2)
+        return (
+          <div key={sess.id} style={{ padding: '14px 20px', background: 'rgba(59,130,246,0.04)', border: '2px solid rgba(59,130,246,0.25)', borderRadius: 12, marginBottom: 12, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#3b82f6', animation: 'pulse 1.5s ease-in-out infinite' }} />
+              <div>
+                <div style={{ fontSize: 13, color: '#3b82f6', fontWeight: 600 }}>Gast hat unterschrieben — Zahlungsart wählen</div>
+                <div style={{ fontSize: 11, color: 'var(--textMuted)' }}>Zimmer {sess.room} · {sess.guest_name} · {total}€</div>
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: 6 }}>
+              <button onClick={() => handlePaymentCard(sess)} style={{ padding: '8px 16px', borderRadius: 8, border: 'none', background: '#635bff', color: '#fff', fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>Karte</button>
+              <button onClick={() => confirmCashPayment(sess)} style={{ padding: '8px 16px', borderRadius: 8, border: 'none', background: '#10b981', color: '#fff', fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>Bar erhalten</button>
+            </div>
+          </div>
+        )
+      })}
+
       {/* Cash Payment Banners */}
       {cashPending.map(sess => (
         <div key={sess.id} style={{ padding: '12px 18px', background: 'rgba(245,158,11,0.06)', border: '2px solid rgba(245,158,11,0.3)', borderRadius: 12, marginBottom: 12, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -531,10 +579,10 @@ export default function Buchungen() {
                       data: { room_total: parseFloat(selected.amount_due) || 0, nights: n, check_in: selected.check_in, check_out: selected.check_out, items: ch },
                       created_at: new Date().toISOString(), expires_at: expiresAt,
                     })
-                    setConfirm({ title: 'Rechnung gesendet', message: `Die Rechnung für ${selected.guest_name} wurde an das Gast-Display gesendet.`, confirmLabel: 'OK', confirmColor: '#10b981', onConfirm: () => setConfirm(null) })
+                    setSelected(null)
+                    setConfirm({ title: 'Rechnung gesendet', message: `Rechnung an Gast-Display gesendet. Warten Sie bis der Gast unterschrieben hat — die Zahlungsart-Auswahl erscheint automatisch.`, confirmLabel: 'OK', confirmColor: '#10b981', onConfirm: () => setConfirm(null) })
                   }} style={{ ...s.actionBtn, background: 'rgba(139,92,246,0.08)', color: '#8b5cf6', border: '1px solid rgba(139,92,246,0.2)' }}>
-                    Rechnung an Gast-Display
-                  </button>
+                    Check-out: Rechnung an Gast-Display
                   <button onClick={async () => { const ch = await loadInvoiceData(selected); openInvoicePDF(selected, ch) }} style={{ ...s.actionBtn, background: 'rgba(59,130,246,0.08)', color: '#3b82f6', border: '1px solid rgba(59,130,246,0.2)' }}>
                     PDF Rechnung drucken
                   </button>

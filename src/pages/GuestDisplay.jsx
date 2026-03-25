@@ -341,15 +341,12 @@ function InvoiceView({ session, onComplete, lang: initialLang }) {
   const netto7 = roomTotal / 1.07; const mwst7 = roomTotal - netto7
   const netto19 = chargesTotal / 1.19; const mwst19 = chargesTotal - netto19
 
-  const [step, setStep] = useState('invoice')
+  const [step, setStep] = useState('invoice') // 'invoice' | 'waiting' | 'stripe' | 'done'
   const [signature, setSignature] = useState(null)
   const [submitting, setSubmitting] = useState(false)
+  const [globalError, setGlobalError] = useState(null)
   const [stripeUrl, setStripeUrl] = useState(null)
   const [stripeSessionId, setStripeSessionId] = useState(null)
-  const [stripeLoading, setStripeLoading] = useState(false)
-  const [stripeError, setStripeError] = useState(null)
-  const [globalError, setGlobalError] = useState(null)
-  const [timedOut, setTimedOut] = useState(false)
 
   const handleConfirm = async () => {
     if (!signature || submitting) return
@@ -357,36 +354,36 @@ function InvoiceView({ session, onComplete, lang: initialLang }) {
     try {
       await supabase.from('guest_display_sessions').update({ status: 'signed', signature }).eq('id', session.id)
       if (grandTotal <= 0) {
+        // No payment needed — PMS will auto-complete, but we can fast-track
         if (session.booking_id) await supabase.from('bookings').update({ status: 'checked_out', payment_method: lang === 'de' ? 'Keine Zahlung (0€)' : 'No payment (0€)', checked_out_at: new Date().toISOString() }).eq('booking_id', session.booking_id)
         await supabase.from('guest_display_sessions').update({ status: 'paid' }).eq('id', session.id)
         onComplete()
       } else {
-        setStep('payment')
+        setStep('waiting') // Wait for PMS to choose payment method
       }
-    } catch (err) {
-      setGlobalError(t.error)
-    }
+    } catch (err) { setGlobalError(t.error) }
     setSubmitting(false)
   }
 
-  const handleStripePayment = async () => {
-    setStripeLoading(true); setStripeError(null)
-    try {
-      const lineItems = buildLineItems({ roomTotal, nights: data.nights, room: session.room, charges: items })
-      const origin = window.location.origin
-      const { url, id } = await createCheckoutSession({
-        lineItems, metadata: { booking_id: session.booking_id || '', guest_name: session.guest_name, room: session.room, session_id: session.id || '' },
-        successUrl: `${origin}/guest-display?payment=success&session_id={CHECKOUT_SESSION_ID}&gds=${session.id || ''}`,
-        cancelUrl: `${origin}/guest-display?payment=cancelled`,
-      })
-      setStripeUrl(url); setStripeSessionId(id)
-    } catch (err) { setStripeError(err.message) }
-    setStripeLoading(false)
-  }
-
-  // Poll Stripe for payment confirmation (fallback if redirect fails)
+  // Listen for PMS actions via Realtime (payment_pending with stripe_url, or paid)
   useEffect(() => {
-    if (!stripeSessionId || step !== 'payment') return
+    if (step !== 'waiting' && step !== 'stripe') return
+    const channel = supabase.channel(`invoice-${session.id}`)
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'guest_display_sessions', filter: `id=eq.${session.id}` }, (payload) => {
+        const s = payload.new
+        if (s.status === 'payment_pending' && s.data?.stripe_url) {
+          setStripeUrl(s.data.stripe_url)
+          setStripeSessionId(s.data.stripe_session_id || null)
+          setStep('stripe')
+        }
+        if (s.status === 'paid') onComplete()
+      }).subscribe()
+    return () => supabase.removeChannel(channel)
+  }, [step, session.id, onComplete])
+
+  // Stripe fallback polling
+  useEffect(() => {
+    if (!stripeSessionId || step !== 'stripe') return
     const poll = setInterval(async () => {
       try {
         const res = await fetch('/api/verify-payment', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sessionId: stripeSessionId }) })
@@ -397,37 +394,10 @@ function InvoiceView({ session, onComplete, lang: initialLang }) {
           if (session.booking_id) await supabase.from('bookings').update({ status: 'checked_out', payment_method: 'Stripe Online', checked_out_at: new Date().toISOString() }).eq('booking_id', session.booking_id)
           onComplete()
         }
-      } catch {} // silent — will retry
+      } catch {}
     }, 10000)
     return () => clearInterval(poll)
   }, [stripeSessionId, step, session.id, session.booking_id, onComplete])
-
-  const handleCash = async () => {
-    try {
-      await supabase.from('guest_display_sessions').update({ status: 'awaiting_cash' }).eq('id', session.id)
-      setStep('waiting_cash')
-    } catch { setGlobalError(t.error) }
-  }
-
-  // Cash timeout
-  useEffect(() => {
-    if (step !== 'waiting_cash') return
-    const timer = setTimeout(async () => {
-      setTimedOut(true)
-      await supabase.from('guest_display_sessions').update({ status: 'waiting' }).eq('id', session.id).catch(() => {})
-    }, CASH_TIMEOUT_MS)
-    return () => clearTimeout(timer)
-  }, [step, session.id])
-
-  // Listen for PMS cash confirmation
-  useEffect(() => {
-    if (step !== 'waiting_cash' || timedOut) return
-    const channel = supabase.channel(`cash-${session.id}`)
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'guest_display_sessions', filter: `id=eq.${session.id}` }, (payload) => {
-        if (payload.new.status === 'paid') onComplete()
-      }).subscribe()
-    return () => supabase.removeChannel(channel)
-  }, [step, session.id, onComplete, timedOut])
 
   // Step 1: Invoice + Signature
   if (step === 'invoice') {
@@ -508,78 +478,42 @@ function InvoiceView({ session, onComplete, lang: initialLang }) {
     )
   }
 
-  // Step 2: Payment
-  if (step === 'payment') {
+  // Step 2: Waiting for PMS to choose payment method
+  if (step === 'waiting') {
     return (
       <div style={{ minHeight: '100vh', background: '#f8f9fa', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 32 }}>
-        <div style={{ maxWidth: 480, width: '100%', textAlign: 'center' }}>
-          <ProgressBar current={2} total={2} label={`${t.step} 2 ${t.of} 2: ${t.stepPay}`} />
-          <div style={{ marginBottom: 32 }}>
-            <div style={{ fontSize: 14, color: '#6b7280', marginBottom: 4 }}>{t.payAmount}</div>
-            <div style={{ fontSize: 42, fontWeight: 300, color: '#1a1a1a' }}>{grandTotal.toFixed(2)} €</div>
-            <div style={{ fontSize: 13, color: '#9ca3af', marginTop: 4 }}>{session.guest_name} · {t.room} {session.room}</div>
+        <div style={{ maxWidth: 440, width: '100%', textAlign: 'center' }}>
+          <div style={{ width: 56, height: 56, borderRadius: '50%', background: 'rgba(59,130,246,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 24px' }}>
+            <svg width={28} height={28} viewBox="0 0 24 24" fill="none" stroke="#3b82f6" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"/><path d="M12 6v6l4 2"/></svg>
           </div>
-          {!stripeUrl ? (
-            <div style={{ display: 'flex', gap: 16, marginBottom: 24 }}>
-              <button onClick={handleCash} style={{ flex: 1, padding: '32px 16px', background: '#fff', border: '2px solid #e5e7eb', borderRadius: 16, cursor: 'pointer', fontFamily: 'inherit', textAlign: 'center' }}>
-                <svg width={40} height={40} viewBox="0 0 24 24" fill="none" stroke="#10b981" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ display: 'block', margin: '0 auto 12px' }}><path d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8V6m0 8v2"/><circle cx="12" cy="12" r="9"/></svg>
-                <div style={{ fontSize: 18, fontWeight: 600, color: '#1a1a1a' }}>{t.cash}</div>
-                <div style={{ fontSize: 12, color: '#9ca3af', marginTop: 4 }}>{t.atReception}</div>
-              </button>
-              <button disabled={stripeLoading} onClick={handleStripePayment} style={{ flex: 1, padding: '32px 16px', background: '#fff', border: '2px solid #e5e7eb', borderRadius: 16, cursor: 'pointer', fontFamily: 'inherit', textAlign: 'center' }}>
-                <svg width={40} height={40} viewBox="0 0 24 24" fill="none" stroke="#635bff" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ display: 'block', margin: '0 auto 12px' }}><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
-                <div style={{ fontSize: 18, fontWeight: 600, color: '#1a1a1a' }}>{stripeLoading ? '...' : t.card}</div>
-                <div style={{ fontSize: 12, color: '#9ca3af', marginTop: 4 }}>{t.creditDebit}</div>
-              </button>
-            </div>
-          ) : (
-            <div style={{ background: '#fff', borderRadius: 16, padding: 32, border: '1px solid #e5e7eb', marginBottom: 24 }}>
-              <h3 style={{ fontSize: 16, fontWeight: 500, color: '#1a1a1a', margin: '0 0 16px' }}>{t.cardPayment}</h3>
-              <QRCode value={stripeUrl} size={200} />
-              <div style={{ marginTop: 20 }}>
-                <a href={stripeUrl} target="_blank" rel="noopener noreferrer" style={{ display: 'inline-block', padding: '14px 32px', background: '#635bff', color: '#fff', borderRadius: 12, fontSize: 15, fontWeight: 600, textDecoration: 'none' }}>{t.payNow}</a>
-              </div>
-              <p style={{ fontSize: 12, color: '#9ca3af', marginTop: 12 }}>{t.scanQR}</p>
-            </div>
-          )}
-          {stripeError && <div style={{ fontSize: 13, color: '#ef4444', marginBottom: 16 }}>{stripeError}</div>}
+          <h2 style={{ fontSize: 22, fontWeight: 300, color: '#1a1a1a', margin: '0 0 8px' }}>{lang === 'de' ? 'Bitte warten' : 'Please wait'}</h2>
+          <p style={{ fontSize: 15, color: '#6b7280', lineHeight: 1.6 }}>{lang === 'de' ? 'Die Rezeption schließt den Vorgang ab.' : 'The front desk is completing the process.'}</p>
+          <div style={{ marginTop: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+            <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#3b82f6', animation: 'pulse 1.5s ease-in-out infinite' }} />
+            <span style={{ fontSize: 12, color: '#9ca3af' }}>{grandTotal.toFixed(2)} € · {session.guest_name}</span>
+          </div>
         </div>
       </div>
     )
   }
 
-  // Step 3: Waiting for cash
-  if (step === 'waiting_cash') {
-    if (timedOut) {
-      return (
-        <div style={{ minHeight: '100vh', background: '#f8f9fa', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 32 }}>
-          <div style={{ maxWidth: 440, textAlign: 'center' }}>
-            <div style={{ width: 72, height: 72, borderRadius: '50%', background: 'rgba(239,68,68,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 24px' }}>
-              <svg width={36} height={36} viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-            </div>
-            <h2 style={{ fontSize: 22, fontWeight: 400, color: '#1a1a1a', margin: '0 0 8px' }}>{t.timeoutTitle}</h2>
-            <p style={{ fontSize: 15, color: '#6b7280' }}>{t.timeout}</p>
-          </div>
-        </div>
-      )
-    }
+  // Step 3: Stripe payment (QR code sent from PMS)
+  if (step === 'stripe' && stripeUrl) {
     return (
       <div style={{ minHeight: '100vh', background: '#f8f9fa', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 32 }}>
         <div style={{ maxWidth: 440, width: '100%', textAlign: 'center' }}>
-          <div style={{ width: 72, height: 72, borderRadius: '50%', background: 'rgba(245,158,11,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 24px' }}>
-            <svg width={36} height={36} viewBox="0 0 24 24" fill="none" stroke="#f59e0b" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8V6m0 8v2"/><circle cx="12" cy="12" r="9"/></svg>
+          <h2 style={{ fontSize: 22, fontWeight: 300, color: '#1a1a1a', margin: '0 0 8px' }}>{t.cardPayment}</h2>
+          <p style={{ fontSize: 32, fontWeight: 300, color: '#1a1a1a', margin: '0 0 24px' }}>{grandTotal.toFixed(2)} €</p>
+          <QRCode value={stripeUrl} size={200} />
+          <div style={{ marginTop: 20 }}>
+            <a href={stripeUrl} target="_blank" rel="noopener noreferrer" style={{ display: 'inline-block', padding: '14px 32px', background: '#635bff', color: '#fff', borderRadius: 12, fontSize: 15, fontWeight: 600, textDecoration: 'none' }}>{t.payNow}</a>
           </div>
-          <h2 style={{ fontSize: 22, fontWeight: 400, color: '#1a1a1a', margin: '0 0 8px' }}>{t.cashPayment}</h2>
-          <p style={{ fontSize: 32, fontWeight: 300, color: '#1a1a1a', margin: '0 0 16px' }}>{grandTotal.toFixed(2)} €</p>
-          <p style={{ fontSize: 15, color: '#6b7280', lineHeight: 1.6 }}>{t.payAtReception}<br/>{t.autoConfirm}</p>
-          <div style={{ marginTop: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
-            <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#f59e0b', animation: 'pulse 1.5s ease-in-out infinite' }} />
-            <span style={{ fontSize: 13, color: '#f59e0b' }}>{t.waitingConfirm}</span>
-          </div>
+          <p style={{ fontSize: 12, color: '#9ca3af', marginTop: 12 }}>{t.scanQR}</p>
         </div>
       </div>
     )
   }
+
   return null
 }
 
