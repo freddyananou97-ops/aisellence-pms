@@ -162,29 +162,47 @@ export default function Buchungen() {
     setEditing(false); setSelected(null); load()
   }
 
+  const [bookingErrors, setBookingErrors] = useState({})
+
+  const validateBooking = () => {
+    const errs = {}
+    if (!newBooking.guest_name) errs.guest_name = 'Gastname ist erforderlich'
+    if (!newBooking.room) errs.room = 'Zimmernummer ist erforderlich'
+    if (!newBooking.check_in) errs.check_in = 'Check-in Datum erforderlich'
+    if (!newBooking.check_out) errs.check_out = 'Check-out Datum erforderlich'
+    if (newBooking.check_in && newBooking.check_out && newBooking.check_out <= newBooking.check_in) errs.check_out = 'Check-out muss nach Check-in liegen'
+    if (newBooking.amount_due && (isNaN(parseFloat(newBooking.amount_due)) || parseFloat(newBooking.amount_due) < 0)) errs.amount_due = 'Betrag muss positiv sein'
+    setBookingErrors(errs)
+    return Object.keys(errs).length === 0
+  }
+
   const createBooking = async () => {
-    const id = `BK-${new Date().getFullYear()}-${String(Date.now()).slice(-6)}`
-    const { guest_id, breakfast_persons, ...bookingData } = newBooking
-    const nightCount = bookingData.check_in && bookingData.check_out ? Math.max(1, Math.ceil((new Date(bookingData.check_out) - new Date(bookingData.check_in)) / 86400000)) : 1
-    await supabase.from('bookings').insert({ ...bookingData, booking_id: id, breakfast_persons: bookingData.breakfast_included ? breakfast_persons : null })
-    // Add breakfast charge to room bill
-    if (bookingData.breakfast_included) {
-      const totalBreakfast = 18 * breakfast_persons * nightCount
-      await supabase.from('service_requests').insert({
-        room: bookingData.room, guest_name: bookingData.guest_name,
-        category: 'breakfast', request_details: `Frühstück (${breakfast_persons} Pers. × ${nightCount} Nächte)`,
-        status: 'resolved', order_total: totalBreakfast, resolved_at: new Date().toISOString(),
-      })
+    if (!validateBooking()) return
+    try {
+      const id = `BK-${new Date().getFullYear()}-${String(Date.now()).slice(-6)}`
+      const { guest_id, breakfast_persons, ...bookingData } = newBooking
+      const nightCount = bookingData.check_in && bookingData.check_out ? Math.max(1, Math.ceil((new Date(bookingData.check_out) - new Date(bookingData.check_in)) / 86400000)) : 1
+      const { error: bookErr } = await supabase.from('bookings').insert({ ...bookingData, booking_id: id, breakfast_persons: bookingData.breakfast_included ? breakfast_persons : null })
+      if (bookErr) throw new Error(bookErr.message)
+      if (bookingData.breakfast_included) {
+        const totalBreakfast = 18 * breakfast_persons * nightCount
+        await supabase.from('service_requests').insert({
+          room: bookingData.room, guest_name: bookingData.guest_name,
+          category: 'breakfast', request_details: `Frühstück (${breakfast_persons} Pers. × ${nightCount} Nächte)`,
+          status: 'resolved', order_total: totalBreakfast, resolved_at: new Date().toISOString(),
+        })
+      }
+      if (guest_id) {
+        const guest = guests.find(g => g.id === guest_id)
+        if (guest) await supabase.from('guests').update({ total_stays: (guest.total_stays || 0) + 1 }).eq('id', guest_id)
+      }
+      setShowNewBooking(false)
+      setNewBooking({ guest_name: '', guest_id: '', room: '', check_in: '', check_out: '', amount_due: '', source: 'Direkt', status: 'reserved', booking_id: '', breakfast_included: false, breakfast_persons: 1 })
+      setGuestSearch(''); setBookingErrors({})
+      load()
+    } catch (e) {
+      setConfirm({ title: 'Fehler', message: `Buchung konnte nicht erstellt werden: ${e.message}`, confirmLabel: 'OK', confirmColor: '#ef4444', onConfirm: () => setConfirm(null) })
     }
-    // Update guest total_stays
-    if (guest_id) {
-      const guest = guests.find(g => g.id === guest_id)
-      if (guest) await supabase.from('guests').update({ total_stays: (guest.total_stays || 0) + 1 }).eq('id', guest_id)
-    }
-    setShowNewBooking(false)
-    setNewBooking({ guest_name: '', guest_id: '', room: '', check_in: '', check_out: '', amount_due: '', source: 'Direkt', status: 'reserved', booking_id: '', breakfast_included: false, breakfast_persons: 1 })
-    setGuestSearch('')
-    load()
   }
 
   // Filtering
@@ -578,19 +596,32 @@ export default function Buchungen() {
             </div>
 
             <label style={s.label}>Zimmer</label>
-            <select style={s.input} value={newBooking.room} onChange={e => setNewBooking(p => ({ ...p, room: e.target.value }))}>
+            <select style={{ ...s.input, borderColor: bookingErrors.room ? '#ef4444' : undefined }} value={newBooking.room} onChange={e => setNewBooking(p => ({ ...p, room: e.target.value }))}>
               <option value="">Zimmer wählen...</option>
               {rooms.filter(r => !r.blocked_reason).map(r => <option key={r.room_number} value={r.room_number}>{r.room_number} — {r.type}</option>)}
               {rooms.filter(r => r.blocked_reason).map(r => <option key={r.room_number} value={r.room_number} disabled>{r.room_number} — GESPERRT ({r.blocked_reason})</option>)}
             </select>
+            {bookingErrors.room && <div style={{ fontSize: 10, color: '#ef4444', marginTop: -12, marginBottom: 8 }}>{bookingErrors.room}</div>}
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-              <div><label style={s.label}>Check-in</label><input style={s.input} type="date" value={newBooking.check_in} onChange={e => setNewBooking(p => ({ ...p, check_in: e.target.value }))} /></div>
-              <div><label style={s.label}>Check-out</label><input style={s.input} type="date" value={newBooking.check_out} onChange={e => setNewBooking(p => ({ ...p, check_out: e.target.value }))} /></div>
+              <div>
+                <label style={s.label}>Check-in</label>
+                <input style={{ ...s.input, borderColor: bookingErrors.check_in ? '#ef4444' : undefined }} type="date" value={newBooking.check_in} onChange={e => setNewBooking(p => ({ ...p, check_in: e.target.value }))} />
+                {bookingErrors.check_in && <div style={{ fontSize: 10, color: '#ef4444', marginTop: -12, marginBottom: 4 }}>{bookingErrors.check_in}</div>}
+              </div>
+              <div>
+                <label style={s.label}>Check-out</label>
+                <input style={{ ...s.input, borderColor: bookingErrors.check_out ? '#ef4444' : undefined }} type="date" value={newBooking.check_out} onChange={e => setNewBooking(p => ({ ...p, check_out: e.target.value }))} />
+                {bookingErrors.check_out && <div style={{ fontSize: 10, color: '#ef4444', marginTop: -12, marginBottom: 4 }}>{bookingErrors.check_out}</div>}
+              </div>
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-              <div><label style={s.label}>Betrag (€)</label><input style={s.input} type="number" placeholder="0" value={newBooking.amount_due} onChange={e => setNewBooking(p => ({ ...p, amount_due: e.target.value }))} /></div>
+              <div>
+                <label style={s.label}>Betrag (€)</label>
+                <input style={{ ...s.input, borderColor: bookingErrors.amount_due ? '#ef4444' : undefined }} type="number" min="0" step="0.01" placeholder="0" value={newBooking.amount_due} onChange={e => setNewBooking(p => ({ ...p, amount_due: e.target.value }))} />
+                {bookingErrors.amount_due && <div style={{ fontSize: 10, color: '#ef4444', marginTop: -12, marginBottom: 4 }}>{bookingErrors.amount_due}</div>}
+              </div>
               <div><label style={s.label}>Quelle</label><select style={s.input} value={newBooking.source} onChange={e => setNewBooking(p => ({ ...p, source: e.target.value }))}>
                 <option value="Direkt">Direkt (Walk-in)</option><option value="Telefon">Telefon</option><option value="Booking.com">Booking.com</option><option value="Expedia">Expedia</option><option value="E-Mail">E-Mail</option>
               </select></div>

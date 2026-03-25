@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { useTheme } from '../lib/theme.jsx'
 import { ROLES } from '../lib/roles'
+import { HOTEL } from '../lib/hotel'
 import ConfirmDialog from '../components/ConfirmDialog'
 
 const S = {
@@ -26,18 +27,8 @@ export default function Settings() {
 
   const loadEmployees = async () => {
     const { data } = await supabase.from('employees').select('*').order('name')
-    setEmployees(data || demoEmployees)
+    setEmployees(data || [])
   }
-
-  const demoEmployees = [
-    { id: 1, name: 'Anna Schmidt', pin: '1234', role: 'rezeption', active: true },
-    { id: 2, name: 'Thomas Müller', pin: '5678', role: 'housekeeping', active: true },
-    { id: 3, name: 'Marco Weber', pin: '9012', role: 'maintenance', active: true },
-    { id: 4, name: 'Lisa Braun', pin: '3456', role: 'kitchen', active: true },
-    { id: 5, name: 'Sarah Koch', pin: '7890', role: 'restaurant', active: true },
-    { id: 6, name: 'Julia Bauer', pin: '2345', role: 'spa', active: true },
-    { id: 7, name: 'Michael Schwarz', pin: '6789', role: 'nachtschicht', active: false },
-  ]
 
   const addEmployee = async () => {
     if (!newEmp.name || !newEmp.pin) return
@@ -75,7 +66,10 @@ export default function Settings() {
           <button onClick={() => setShowAdd(true)} style={{ padding: '8px 16px', background: 'var(--text,#fff)', color: 'var(--bg,#080808)', border: 'none', borderRadius: 8, fontSize: 12, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit' }}>+ Neuer Mitarbeiter</button>
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 10 }}>
-          {(employees.length > 0 ? employees : demoEmployees).map(emp => {
+          {employees.length === 0 ? (
+            <div style={{ padding: 24, textAlign: 'center', color: 'var(--textDim)', fontSize: 12 }}>Keine Mitarbeiter — klicke "+ Neuer Mitarbeiter"</div>
+          ) : null}
+          {employees.map(emp => {
             const rc = roleColors[emp.role] || '#888'
             const roleLabels = { admin: 'Administrator', rezeption: 'Rezeption', housekeeping: 'Housekeeping', maintenance: 'Wartung', kitchen: 'Küche', restaurant: 'Restaurant', spa: 'Spa', nachtschicht: 'Nachtschicht' }
             return (
@@ -101,11 +95,13 @@ export default function Settings() {
       {/* HOTEL-STAMMDATEN */}
       {tab === 'hotel' && <div style={{ maxWidth: 600 }}>
         <div style={S.card}>
-          {[['Hotelname','Maritim Hotel Ingolstadt'],['Adresse','Am Congress Centrum 1'],['PLZ','85049'],['Stadt','Ingolstadt'],['Telefon','+49 841 49050'],['Email','info@maritim-ingolstadt.de'],['Website','www.maritim.de/ingolstadt'],['USt-IdNr.','DE 123 456 789'],['Steuernummer','143/123/45678'],['Geschäftsführer','Thomas Müller']].map(([l,v],i) => (
-            <div key={i}><label style={S.label}>{l}</label><input style={S.input} defaultValue={v} /></div>
+          <div style={{ padding: '10px 0 16px', fontSize: 11, color: 'var(--textMuted,#888)', lineHeight: 1.5 }}>
+            Hotel-Stammdaten werden in <code style={{ background: 'var(--border)', padding: '2px 6px', borderRadius: 4, fontSize: 10 }}>src/lib/hotel.js</code> konfiguriert und auf Rechnungen, Bons und im Gast-Display angezeigt.
+          </div>
+          {[['Hotelname', HOTEL.name],['Adresse', HOTEL.street],['PLZ', HOTEL.zip],['Stadt', HOTEL.city],['Telefon', HOTEL.phone],['Email', HOTEL.email],['USt-IdNr.', HOTEL.taxId],['IBAN', HOTEL.iban],['BIC', HOTEL.bic]].map(([l,v],i) => (
+            <div key={i}><label style={S.label}>{l}</label><input style={{ ...S.input, opacity: 0.7 }} value={v} readOnly /></div>
           ))}
-          <button style={{ padding: '12px 24px', background: 'var(--text,#fff)', color: 'var(--bg,#080808)', border: 'none', borderRadius: 10, fontSize: 13, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit' }}>Speichern</button>
-          <p style={{ fontSize: 10, color: 'var(--textDim,#444)', textAlign: 'center', marginTop: 8 }}>Wird auf Rechnungen, Bons und im Impressum angezeigt.</p>
+          <p style={{ fontSize: 10, color: 'var(--textDim,#444)', marginTop: 4 }}>Änderungen an Hotel-Stammdaten werden in der Konfigurationsdatei vorgenommen.</p>
         </div>
       </div>}
 

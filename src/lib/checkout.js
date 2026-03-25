@@ -23,11 +23,28 @@ export async function prepareCheckoutItems(booking) {
  */
 export async function finalizeCheckout(booking, items, paymentMethod) {
   const pmLabel = paymentMethod === 'card' ? 'Kartenzahlung' : paymentMethod === 'cash' ? 'Barzahlung' : paymentMethod === 'invoice' ? 'Rechnung' : paymentMethod
-  await supabase.from('bookings').update({
+  const { error } = await supabase.from('bookings').update({
     status: 'checked_out',
     payment_method: pmLabel,
     checked_out_at: new Date().toISOString(),
   }).eq('id', booking.id)
+  if (error) throw new Error(`Checkout fehlgeschlagen: ${error.message}`)
   const invoiceCharges = items.filter(i => i.id !== 'room').map(i => ({ type: i.type, details: i.details, amount: i.amount, date: new Date().toISOString() }))
   openInvoicePDF({ ...booking, amount_due: items.find(i => i.id === 'room')?.amount || 0 }, invoiceCharges)
+}
+
+/**
+ * Safe multi-table operation: try all updates, report first failure.
+ */
+export async function safeMultiUpdate(operations) {
+  const results = []
+  for (const op of operations) {
+    const { error } = await op()
+    if (error) {
+      console.error('Multi-table update failed:', error)
+      return { success: false, error: error.message, completed: results.length }
+    }
+    results.push(true)
+  }
+  return { success: true, completed: results.length }
 }

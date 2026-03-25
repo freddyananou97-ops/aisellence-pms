@@ -15,11 +15,8 @@ export default function Dashboard({ user }) {
   })
   const [taxiMinutes, setTaxiMinutes] = useState({})
   const [confirm, setConfirm] = useState(null)
-  const [clock, setClock] = useState(new Date())
   const { notify } = useNotifications('dashboard')
   const [weather, setWeather] = useState(null)
-
-  useEffect(() => { const iv = setInterval(() => setClock(new Date()), 1000); return () => clearInterval(iv) }, [])
 
   useEffect(() => {
     fetch('https://api.open-meteo.com/v1/forecast?latitude=48.7665&longitude=11.4258&current=temperature_2m,weathercode,windspeed_10m&daily=temperature_2m_max,temperature_2m_min,weathercode,precipitation_probability_max&timezone=Europe/Berlin&forecast_days=7')
@@ -125,7 +122,7 @@ export default function Dashboard({ user }) {
   return (
     <div style={s.content} className="fade-in">
       <div style={s.header}>
-        <div><h1 style={s.h1}>{tier === 'concierge' ? 'Marco Concierge' : 'Dashboard'}</h1><p style={s.date}>{clock.toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })} · <span style={{ color: 'var(--text,#fff)', fontWeight: 500, fontSize: 13 }}>{clock.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</span></p></div>
+        <div><h1 style={s.h1}>{tier === 'concierge' ? 'Marco Concierge' : 'Dashboard'}</h1><p style={s.date}><DashboardClock /></p></div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}><div style={s.liveDot} title="Realtime aktiv" /><div style={s.hotelBadge}>{user.hotel}</div></div>
       </div>
 
@@ -329,7 +326,7 @@ export default function Dashboard({ user }) {
         </Card>
       </div>
 
-      <div style={s.realtimeBar}>Supabase Realtime aktiv · Letzte Aktualisierung: {clock.toLocaleTimeString('de-DE')}</div>
+      <RealtimeBar />
       {/* New Request Modal */}
       {showNewRequest && (
         <div style={{ position: 'fixed', inset: 0, background: 'var(--overlayBg, rgba(0,0,0,0.7))', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100 }} onClick={() => setShowNewRequest(false)}>
@@ -402,6 +399,18 @@ export default function Dashboard({ user }) {
       )}
     </div>
   )
+}
+
+function DashboardClock({ style }) {
+  const [now, setNow] = useState(new Date())
+  useEffect(() => { const iv = setInterval(() => setNow(new Date()), 60000); return () => clearInterval(iv) }, [])
+  return <span style={style}>{now.toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })} · <span style={{ color: 'var(--text,#fff)', fontWeight: 500, fontSize: 13 }}>{now.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}</span></span>
+}
+
+function RealtimeBar() {
+  const [now, setNow] = useState(new Date())
+  useEffect(() => { const iv = setInterval(() => setNow(new Date()), 60000); return () => clearInterval(iv) }, [])
+  return <div style={s.realtimeBar}>Supabase Realtime aktiv · {now.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}</div>
 }
 
 function Stat({ label, value, change, up }) {
