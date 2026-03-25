@@ -14,18 +14,19 @@ function ParticleWave({ exiting }) {
     const container = mountRef.current
     if (!container) return
 
+    const w = window.innerWidth, h = window.innerHeight
     const scene = new THREE.Scene()
-    const camera = new THREE.PerspectiveCamera(55, container.clientWidth / container.clientHeight, 0.1, 1000)
-    camera.position.set(0, 12, 28)
+    const camera = new THREE.PerspectiveCamera(55, w / h, 0.1, 1000)
+    camera.position.set(0, 14, 30)
     camera.lookAt(0, 0, 0)
 
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true })
-    renderer.setSize(container.clientWidth, container.clientHeight)
+    renderer.setSize(w, h)
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
     renderer.setClearColor(0x000000, 0)
     container.appendChild(renderer.domElement)
 
-    const cols = 80, rows = 80, spacing = 0.5, count = cols * rows
+    const cols = 100, rows = 100, spacing = 0.5, count = cols * rows
     const geometry = new THREE.BufferGeometry()
     const positions = new Float32Array(count * 3)
     const basePositions = new Float32Array(count * 3)
@@ -89,7 +90,7 @@ function ParticleWave({ exiting }) {
     }
     animate()
 
-    const handleResize = () => { camera.aspect = container.clientWidth / container.clientHeight; camera.updateProjectionMatrix(); renderer.setSize(container.clientWidth, container.clientHeight) }
+    const handleResize = () => { camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix(); renderer.setSize(window.innerWidth, window.innerHeight) }
     window.addEventListener('resize', handleResize)
 
     return () => {
@@ -101,7 +102,7 @@ function ParticleWave({ exiting }) {
     }
   }, [])
 
-  return <div ref={mountRef} style={{ position: 'absolute', inset: 0, zIndex: 0 }} />
+  return <div ref={mountRef} style={{ position: 'fixed', inset: 0, width: '100vw', height: '100vh', zIndex: 0 }} />
 }
 
 export default function Login({ onLogin, transitioning }) {
@@ -134,22 +135,20 @@ export default function Login({ onLogin, transitioning }) {
   const greeting = hour >= 5 && hour < 12 ? 'Guten Morgen' : hour >= 12 && hour < 18 ? 'Guten Tag' : 'Guten Abend'
 
   return (
-    <div style={{ minHeight: '100vh', display: 'flex', background: '#050505' }}>
+    <div style={{ minHeight: '100vh', display: 'flex', background: '#050505', position: 'relative' }}>
+
+      {/* Fullscreen 3D Particle Wave Background */}
+      <ParticleWave exiting={transitioning} />
 
       {/* Left Panel — Branding */}
-      <div className="login-brand" style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'space-between', padding: '48px', position: 'relative', overflow: 'hidden' }}>
-        {/* 3D Particle Wave Background */}
-        <ParticleWave exiting={transitioning} />
+      <div className="login-brand" style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'space-between', padding: '48px', position: 'relative', zIndex: 2 }}>
 
-        {/* Accent line */}
-        <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 1, background: 'linear-gradient(to bottom, transparent, #10b981, transparent)', zIndex: 1, transition: 'opacity 0.6s ease', opacity: transitioning ? 0 : 1 }} />
-
-        <div style={{ position: 'relative', zIndex: 1, transition: 'opacity 0.5s ease 0.1s, transform 0.5s ease 0.1s', opacity: transitioning ? 0 : 1, transform: transitioning ? 'translateY(-20px)' : 'translateY(0)' }}>
+        <div style={{ transition: 'opacity 0.5s ease 0.1s, transform 0.5s ease 0.1s', opacity: transitioning ? 0 : 1, transform: transitioning ? 'translateY(-20px)' : 'translateY(0)' }}>
           <div style={{ marginBottom: 12 }}><Logo /></div>
-          <p style={{ color: '#333', fontSize: 11, letterSpacing: 3, textTransform: 'uppercase', margin: 0 }}>Property Management System</p>
+          <p style={{ color: '#444', fontSize: 11, letterSpacing: 3, textTransform: 'uppercase', margin: 0 }}>Property Management System</p>
         </div>
 
-        <div style={{ position: 'relative', zIndex: 1, transition: 'opacity 0.5s ease', opacity: transitioning ? 0 : 1 }}>
+        <div style={{ transition: 'opacity 0.5s ease', opacity: transitioning ? 0 : 1 }}>
           <h1 style={{ fontSize: 36, fontWeight: 300, color: '#fff', margin: '0 0 12px', lineHeight: 1.2, letterSpacing: -1 }}>
             {greeting}
           </h1>
@@ -159,7 +158,7 @@ export default function Login({ onLogin, transitioning }) {
           </p>
         </div>
 
-        <div style={{ position: 'relative', zIndex: 1, display: 'flex', gap: 24, alignItems: 'center', transition: 'opacity 0.4s ease', opacity: transitioning ? 0 : 1 }}>
+        <div style={{ display: 'flex', gap: 24, alignItems: 'center', transition: 'opacity 0.4s ease', opacity: transitioning ? 0 : 1 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#10b981' }} />
             <span style={{ fontSize: 11, color: '#444' }}>System Online</span>
@@ -170,7 +169,8 @@ export default function Login({ onLogin, transitioning }) {
 
       {/* Right Panel — Login Form */}
       <div className="login-form" style={{
-        width: 480, display: 'flex', alignItems: 'center', justifyContent: 'center', borderLeft: '1px solid #111', background: '#080808',
+        width: 480, display: 'flex', alignItems: 'center', justifyContent: 'center', borderLeft: '1px solid rgba(255,255,255,0.06)', background: 'rgba(8,8,8,0.85)', backdropFilter: 'blur(20px)',
+        position: 'relative', zIndex: 2,
         transition: 'opacity 0.4s ease, transform 0.4s ease',
         opacity: transitioning ? 0 : 1,
         transform: transitioning ? 'scale(1.03) translateY(-10px)' : 'scale(1) translateY(0)',
