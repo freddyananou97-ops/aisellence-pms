@@ -4,7 +4,21 @@ import Logo from '../components/Logo'
 import { loginEmployee } from '../lib/supabase'
 import { ROLES } from '../lib/roles'
 
-function ParticleWave({ exiting }) {
+function getLoginMode() {
+  const h = new Date().getHours()
+  if (h >= 6 && h < 18) return 'light'
+  return 'dark'
+}
+
+function getGreeting() {
+  const h = new Date().getHours()
+  if (h >= 6 && h < 12) return 'Guten Morgen'
+  if (h >= 12 && h < 18) return 'Guten Tag'
+  if (h >= 18 && h < 22) return 'Guten Abend'
+  return 'Gute Nacht'
+}
+
+function ParticleWave({ exiting, light }) {
   const mountRef = useRef(null)
   const exitRef = useRef(false)
 
@@ -43,7 +57,9 @@ function ParticleWave({ exiting }) {
 
     geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3))
 
-    const material = new THREE.PointsMaterial({ size: 0.06, color: 0x10b981, transparent: true, opacity: 0.6, sizeAttenuation: true })
+    const particleColor = light ? 0x6b7280 : 0x10b981
+    const baseOpacity = light ? 0.35 : 0.6
+    const material = new THREE.PointsMaterial({ size: 0.06, color: particleColor, transparent: true, opacity: baseOpacity, sizeAttenuation: true })
     const points = new THREE.Points(geometry, material)
     scene.add(points)
 
@@ -59,10 +75,9 @@ function ParticleWave({ exiting }) {
       const t = clock.getElapsedTime()
       const pos = geometry.attributes.position.array
 
-      // Exit animation: particles drift upward and scatter
       if (exitRef.current && !exitStart) exitStart = t
       const exitProgress = exitStart ? Math.min((t - exitStart) / 1.2, 1) : 0
-      const scatter = exitProgress * exitProgress // ease-in
+      const scatter = exitProgress * exitProgress
 
       for (let i = 0; i < count; i++) {
         const idx = i * 3
@@ -72,18 +87,17 @@ function ParticleWave({ exiting }) {
         pos[idx + 1] = Math.sin(dist * 0.4 - t * 1.2) * 1.5 +
                         Math.sin(bx * 0.3 + t * 0.8) * 0.5 +
                         Math.cos(bz * 0.3 + t * 0.6) * 0.5 +
-                        scatter * (3 + dist * 0.15) // drift upward
-        // Slight outward scatter
+                        scatter * (3 + dist * 0.15)
         if (scatter > 0) {
           pos[idx] = bx + scatter * bx * 0.3
           pos[idx + 2] = bz + scatter * bz * 0.3
         }
       }
       geometry.attributes.position.needsUpdate = true
-      material.opacity = 0.6 * (1 - scatter)
+      material.opacity = baseOpacity * (1 - scatter)
 
       camera.position.x = mouse.x * 2
-      camera.position.y = 12 + mouse.y * 1.5 + scatter * 4
+      camera.position.y = 14 + mouse.y * 1.5 + scatter * 4
       camera.lookAt(0, scatter * 2, 0)
 
       renderer.render(scene, camera)
@@ -100,7 +114,7 @@ function ParticleWave({ exiting }) {
       geometry.dispose(); material.dispose(); renderer.dispose()
       if (container.contains(renderer.domElement)) container.removeChild(renderer.domElement)
     }
-  }, [])
+  }, [light])
 
   return <div ref={mountRef} style={{ position: 'fixed', inset: 0, width: '100vw', height: '100vh', zIndex: 0 }} />
 }
@@ -131,28 +145,48 @@ export default function Login({ onLogin, transitioning }) {
     setLoading(false)
   }
 
-  const hour = new Date().getHours()
-  const greeting = hour >= 5 && hour < 12 ? 'Guten Morgen' : hour >= 12 && hour < 18 ? 'Guten Tag' : 'Guten Abend'
+  const mode = getLoginMode()
+  const isLight = mode === 'light'
+  const greeting = getGreeting()
+
+  // Theme-aware colors
+  const c = isLight ? {
+    bg: '#f0f0f2', text: '#1a1a1a', textSec: '#333', textMuted: '#666', textDim: '#999',
+    panelBg: 'rgba(255,255,255,0.75)', panelBorder: 'rgba(0,0,0,0.06)',
+    inputBg: '#fff', inputBorder: '#d1d1d6', inputText: '#1a1a1a',
+    label: '#666', accent: '#10b981',
+    tierBorder: '#d1d1d6', tierText: '#666', tierBg: 'transparent',
+    toggleOff: '#d1d1d6', statusDot: '#10b981', statusText: '#666', dateText: '#999',
+    logoColor: '#1a1a1a',
+  } : {
+    bg: '#050505', text: '#fff', textSec: '#ccc', textMuted: '#888', textDim: '#444',
+    panelBg: 'rgba(8,8,8,0.85)', panelBorder: 'rgba(255,255,255,0.06)',
+    inputBg: '#0a0a0a', inputBorder: '#1a1a1a', inputText: '#fff',
+    label: '#444', accent: '#10b981',
+    tierBorder: '#1a1a1a', tierText: '#666', tierBg: 'transparent',
+    toggleOff: '#222', statusDot: '#10b981', statusText: '#444', dateText: '#333',
+    logoColor: '#fff',
+  }
 
   return (
-    <div style={{ minHeight: '100vh', display: 'flex', background: '#050505', position: 'relative' }}>
+    <div style={{ minHeight: '100vh', display: 'flex', background: c.bg, position: 'relative', transition: 'background 0.3s' }}>
 
       {/* Fullscreen 3D Particle Wave Background */}
-      <ParticleWave exiting={transitioning} />
+      <ParticleWave exiting={transitioning} light={isLight} />
 
       {/* Left Panel — Branding */}
       <div className="login-brand" style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'space-between', padding: '48px', position: 'relative', zIndex: 2 }}>
 
         <div style={{ transition: 'opacity 0.5s ease 0.1s, transform 0.5s ease 0.1s', opacity: transitioning ? 0 : 1, transform: transitioning ? 'translateY(-20px)' : 'translateY(0)' }}>
-          <div style={{ marginBottom: 12 }}><Logo /></div>
-          <p style={{ color: '#444', fontSize: 11, letterSpacing: 3, textTransform: 'uppercase', margin: 0 }}>Property Management System</p>
+          <div style={{ marginBottom: 12, '--text': c.logoColor }}><Logo /></div>
+          <p style={{ color: c.textDim, fontSize: 11, letterSpacing: 3, textTransform: 'uppercase', margin: 0 }}>Property Management System</p>
         </div>
 
         <div style={{ transition: 'opacity 0.5s ease', opacity: transitioning ? 0 : 1 }}>
-          <h1 style={{ fontSize: 36, fontWeight: 300, color: '#fff', margin: '0 0 12px', lineHeight: 1.2, letterSpacing: -1 }}>
+          <h1 style={{ fontSize: 42, fontWeight: 200, color: c.text, margin: '0 0 12px', lineHeight: 1.2, letterSpacing: -1.5 }}>
             {greeting}
           </h1>
-          <p style={{ fontSize: 14, color: '#555', margin: 0, lineHeight: 1.6, maxWidth: 360 }}>
+          <p style={{ fontSize: 14, color: c.textMuted, margin: 0, lineHeight: 1.6, maxWidth: 360 }}>
             Willkommen im Aisellence PMS.<br />
             Melden Sie sich an, um Ihren Arbeitsbereich zu öffnen.
           </p>
@@ -160,16 +194,17 @@ export default function Login({ onLogin, transitioning }) {
 
         <div style={{ display: 'flex', gap: 24, alignItems: 'center', transition: 'opacity 0.4s ease', opacity: transitioning ? 0 : 1 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#10b981' }} />
-            <span style={{ fontSize: 11, color: '#444' }}>System Online</span>
+            <div style={{ width: 6, height: 6, borderRadius: '50%', background: c.statusDot }} />
+            <span style={{ fontSize: 11, color: c.statusText }}>System Online</span>
           </div>
-          <span style={{ fontSize: 11, color: '#333' }}>{new Date().toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</span>
+          <span style={{ fontSize: 11, color: c.dateText }}>{new Date().toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</span>
         </div>
       </div>
 
       {/* Right Panel — Login Form */}
       <div className="login-form" style={{
-        width: 480, display: 'flex', alignItems: 'center', justifyContent: 'center', borderLeft: '1px solid rgba(255,255,255,0.06)', background: 'rgba(8,8,8,0.85)', backdropFilter: 'blur(20px)',
+        width: 480, display: 'flex', alignItems: 'center', justifyContent: 'center',
+        borderLeft: `1px solid ${c.panelBorder}`, background: c.panelBg, backdropFilter: 'blur(24px)',
         position: 'relative', zIndex: 2,
         transition: 'opacity 0.4s ease, transform 0.4s ease',
         opacity: transitioning ? 0 : 1,
@@ -178,41 +213,43 @@ export default function Login({ onLogin, transitioning }) {
         <div style={{ width: '100%', maxWidth: 360, padding: '0 40px' }}>
 
           <div style={{ marginBottom: 32 }}>
-            <h2 style={{ fontSize: 20, fontWeight: 500, color: '#fff', margin: '0 0 6px' }}>Anmelden</h2>
-            <p style={{ fontSize: 12, color: '#555', margin: 0 }}>Bitte wählen Sie Ihr Produkt und melden Sie sich an.</p>
+            <h2 style={{ fontSize: 20, fontWeight: 500, color: c.text, margin: '0 0 6px' }}>Anmelden</h2>
+            <p style={{ fontSize: 12, color: c.textMuted, margin: 0 }}>Bitte wählen Sie Ihr Produkt und melden Sie sich an.</p>
           </div>
 
           {/* Product Tier */}
-          <label style={s.label}>Produkt</label>
+          <label style={{ display: 'block', fontSize: 10, fontWeight: 500, color: c.label, marginBottom: 6, textTransform: 'uppercase', letterSpacing: 1 }}>Produkt</label>
           <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
             <button onClick={() => setTier('pms')} style={{
-              ...s.tierBtn,
-              border: tier === 'pms' ? '1px solid #10b981' : '1px solid #1a1a1a',
-              background: tier === 'pms' ? 'rgba(16,185,129,0.04)' : 'transparent',
+              flex: 1, padding: '14px 10px', borderRadius: 10, cursor: 'pointer', fontFamily: 'inherit', textAlign: 'center', transition: '0.15s',
+              border: tier === 'pms' ? '1px solid #10b981' : `1px solid ${c.tierBorder}`,
+              background: tier === 'pms' ? 'rgba(16,185,129,0.06)' : c.tierBg,
             }}>
-              <div style={{ fontSize: 12, color: tier === 'pms' ? '#10b981' : '#666', fontWeight: 600 }}>PMS + Marco</div>
-              <div style={{ fontSize: 10, color: '#444', marginTop: 3 }}>Alle Module</div>
+              <div style={{ fontSize: 12, color: tier === 'pms' ? '#10b981' : c.tierText, fontWeight: 600 }}>PMS + Marco</div>
+              <div style={{ fontSize: 10, color: c.textDim, marginTop: 3 }}>Alle Module</div>
             </button>
             <button onClick={() => setTier('concierge')} style={{
-              ...s.tierBtn,
-              border: tier === 'concierge' ? '1px solid #8b5cf6' : '1px solid #1a1a1a',
-              background: tier === 'concierge' ? 'rgba(139,92,246,0.04)' : 'transparent',
+              flex: 1, padding: '14px 10px', borderRadius: 10, cursor: 'pointer', fontFamily: 'inherit', textAlign: 'center', transition: '0.15s',
+              border: tier === 'concierge' ? '1px solid #8b5cf6' : `1px solid ${c.tierBorder}`,
+              background: tier === 'concierge' ? 'rgba(139,92,246,0.06)' : c.tierBg,
             }}>
-              <div style={{ fontSize: 12, color: tier === 'concierge' ? '#8b5cf6' : '#666', fontWeight: 600 }}>Marco Concierge</div>
-              <div style={{ fontSize: 10, color: '#444', marginTop: 3 }}>Service Requests</div>
+              <div style={{ fontSize: 12, color: tier === 'concierge' ? '#8b5cf6' : c.tierText, fontWeight: 600 }}>Marco Concierge</div>
+              <div style={{ fontSize: 10, color: c.textDim, marginTop: 3 }}>Service Requests</div>
             </button>
           </div>
 
-          <label style={s.label}>Name</label>
-          <input style={s.input} placeholder="Dein Name" value={name} onChange={e => setName(e.target.value)} />
+          <label style={{ display: 'block', fontSize: 10, fontWeight: 500, color: c.label, marginBottom: 6, textTransform: 'uppercase', letterSpacing: 1 }}>Name</label>
+          <input style={{ width: '100%', padding: '12px 16px', border: `1px solid ${c.inputBorder}`, borderRadius: 10, fontSize: 14, outline: 'none', background: c.inputBg, color: c.inputText, boxSizing: 'border-box', marginBottom: 16, fontFamily: 'inherit', transition: 'border 0.15s' }}
+            placeholder="Dein Name" value={name} onChange={e => setName(e.target.value)} />
 
-          <label style={s.label}>Passwort</label>
+          <label style={{ display: 'block', fontSize: 10, fontWeight: 500, color: c.label, marginBottom: 6, textTransform: 'uppercase', letterSpacing: 1 }}>Passwort</label>
           <div style={{ position: 'relative', marginBottom: 16 }}>
-            <input style={{ ...s.input, marginBottom: 0, paddingRight: 44 }} type={showPin ? 'text' : 'password'} placeholder="••••••" value={pin}
+            <input style={{ width: '100%', padding: '12px 16px', paddingRight: 44, border: `1px solid ${c.inputBorder}`, borderRadius: 10, fontSize: 14, outline: 'none', background: c.inputBg, color: c.inputText, boxSizing: 'border-box', fontFamily: 'inherit', transition: 'border 0.15s' }}
+              type={showPin ? 'text' : 'password'} placeholder="••••••" value={pin}
               onChange={e => setPin(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && handleLogin()} />
             <button onClick={() => setShowPin(!showPin)} style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', padding: 4 }}>
-              <svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke={showPin ? '#10b981' : '#444'} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+              <svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke={showPin ? '#10b981' : c.textDim} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                 {showPin ? <><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></> : <><path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></>}
               </svg>
             </button>
@@ -220,16 +257,17 @@ export default function Login({ onLogin, transitioning }) {
 
           {/* Demo mode */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
-            <button onClick={() => setDemoMode(!demoMode)} style={{ width: 36, height: 20, borderRadius: 10, border: 'none', cursor: 'pointer', position: 'relative', background: demoMode ? '#10b981' : '#222', transition: '0.2s' }}>
+            <button onClick={() => setDemoMode(!demoMode)} style={{ width: 36, height: 20, borderRadius: 10, border: 'none', cursor: 'pointer', position: 'relative', background: demoMode ? '#10b981' : c.toggleOff, transition: '0.2s' }}>
               <div style={{ width: 14, height: 14, borderRadius: 7, background: '#fff', position: 'absolute', top: 3, left: demoMode ? 19 : 3, transition: '0.2s' }} />
             </button>
-            <span style={{ fontSize: 11, color: '#555' }}>Demo-Modus</span>
+            <span style={{ fontSize: 11, color: c.textMuted }}>Demo-Modus</span>
           </div>
 
           {demoMode && (
             <>
-              <label style={s.label}>Rolle (Demo)</label>
-              <select style={s.input} value={demoRole} onChange={e => setDemoRole(e.target.value)}>
+              <label style={{ display: 'block', fontSize: 10, fontWeight: 500, color: c.label, marginBottom: 6, textTransform: 'uppercase', letterSpacing: 1 }}>Rolle (Demo)</label>
+              <select style={{ width: '100%', padding: '12px 16px', border: `1px solid ${c.inputBorder}`, borderRadius: 10, fontSize: 14, outline: 'none', background: c.inputBg, color: c.inputText, boxSizing: 'border-box', marginBottom: 16, fontFamily: 'inherit' }}
+                value={demoRole} onChange={e => setDemoRole(e.target.value)}>
                 {Object.entries(ROLES).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
               </select>
             </>
@@ -245,7 +283,7 @@ export default function Login({ onLogin, transitioning }) {
             {loading ? 'Einloggen...' : 'Einloggen'}
           </button>
 
-          <p style={{ fontSize: 10, color: '#333', textAlign: 'center', marginTop: 20 }}>
+          <p style={{ fontSize: 10, color: c.textDim, textAlign: 'center', marginTop: 20 }}>
             Powered by Aisellence · v1.0
           </p>
         </div>
@@ -260,10 +298,4 @@ export default function Login({ onLogin, transitioning }) {
       `}</style>
     </div>
   )
-}
-
-const s = {
-  label: { display: 'block', fontSize: 10, fontWeight: 500, color: '#444', marginBottom: 6, textTransform: 'uppercase', letterSpacing: 1 },
-  input: { width: '100%', padding: '12px 16px', border: '1px solid #1a1a1a', borderRadius: 10, fontSize: 14, outline: 'none', background: '#0a0a0a', color: '#fff', boxSizing: 'border-box', marginBottom: 16, fontFamily: 'inherit', transition: 'border 0.15s' },
-  tierBtn: { flex: 1, padding: '14px 10px', borderRadius: 10, cursor: 'pointer', fontFamily: 'inherit', textAlign: 'center', transition: '0.15s' },
 }
