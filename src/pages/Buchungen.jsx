@@ -7,7 +7,7 @@ import { logAction } from '../lib/audit'
 import { exportCSV, todayStr as csvDate } from '../lib/export'
 import { openPrintPage, buildTable } from '../lib/print'
 import { createCheckoutSession, buildLineItems } from '../lib/stripe'
-import { prepareCheckoutItems, finalizeCheckout as doFinalizeCheckout } from '../lib/checkout'
+import CheckoutWizard from '../components/CheckoutWizard'
 import ConfirmDialog from '../components/ConfirmDialog'
 
 const STATUS_CONF = {
@@ -33,11 +33,7 @@ export default function Buchungen() {
   })
   const [charges, setCharges] = useState([])
   const [signatureView, setSignatureView] = useState(null)
-  const [checkoutPreview, setCheckoutPreview] = useState(null)
-  const [checkoutItems, setCheckoutItems] = useState([])
-  const [newItemLabel, setNewItemLabel] = useState('')
-  const [newItemAmount, setNewItemAmount] = useState('')
-  const [paymentMethod, setPaymentMethod] = useState('card')
+  const [checkoutBooking, setCheckoutBooking] = useState(null)
   const [showNewBooking, setShowNewBooking] = useState(false)
   const [newBooking, setNewBooking] = useState({ guest_name: '', guest_id: '', room: '', check_in: '', check_out: '', amount_due: '', source: 'Direkt', status: 'reserved', booking_id: '', breakfast_included: false, breakfast_persons: 1 })
   const [guests, setGuests] = useState([])
@@ -106,7 +102,6 @@ export default function Buchungen() {
 
   useModalClose(!!selected, () => { setSelected(null); setEditing(false) })
   useModalClose(!!showNewBooking, () => setShowNewBooking(false))
-  useModalClose(!!checkoutPreview, () => setCheckoutPreview(null))
 
   useEffect(() => {
     load()
@@ -166,30 +161,7 @@ export default function Buchungen() {
     setConfirm({ title: 'Meldeschein gesendet', message: `Der Meldeschein für ${booking.guest_name} wurde an das Gast-Display gesendet.`, confirmLabel: 'OK', confirmColor: '#10b981', onConfirm: () => setConfirm(null) })
   }
 
-  const doCheckOut = async (booking) => {
-    const items = await prepareCheckoutItems(booking)
-    setCheckoutItems(items)
-    setCheckoutPreview(booking)
-    setSelected(null)
-    setNewItemLabel(''); setNewItemAmount('')
-  }
-
-  const updateCheckoutItem = (id, field, value) => {
-    setCheckoutItems(prev => prev.map(item => item.id === id ? { ...item, [field]: field === 'amount' ? parseFloat(value) || 0 : value } : item))
-  }
-
-  const removeCheckoutItem = (id) => setCheckoutItems(prev => prev.filter(item => item.id !== id))
-
-  const addCheckoutItem = () => {
-    if (!newItemLabel) return
-    setCheckoutItems(prev => [...prev, { id: `new-${Date.now()}`, type: 'Sonstige', details: newItemLabel, amount: parseFloat(newItemAmount) || 0 }])
-    setNewItemLabel(''); setNewItemAmount('')
-  }
-
-  const finalizeCheckout = async () => {
-    await doFinalizeCheckout(checkoutPreview, checkoutItems, paymentMethod)
-    setCheckoutPreview(null); setCheckoutItems([]); setPaymentMethod('card'); load()
-  }
+  const startCheckout = (booking) => { setCheckoutBooking(booking); setSelected(null) }
 
   const doCancel = (booking) => {
     setConfirm({
@@ -565,28 +537,11 @@ export default function Buchungen() {
                     )}
                   </>
                 })()}
-                {selected.status === 'checked_in' && <>
-                  <button onClick={() => doCheckOut(selected)} style={{ ...s.actionBtn, background: '#f59e0b', color: '#000', border: 'none' }}>
-                    Auschecken & Rechnung prüfen
+                {selected.status === 'checked_in' && (
+                  <button onClick={() => startCheckout(selected)} style={{ ...s.actionBtn, background: '#f59e0b', color: '#000', border: 'none' }}>
+                    Gast auschecken
                   </button>
-                  <button onClick={async () => {
-                    const ch = await loadInvoiceData(selected)
-                    const n = nights(selected.check_in, selected.check_out)
-                    const expiresAt = new Date(Date.now() + 30 * 60 * 1000).toISOString()
-                    await supabase.from('guest_display_sessions').insert({
-                      type: 'invoice', status: 'active', room: selected.room,
-                      guest_name: selected.guest_name, booking_id: selected.booking_id || null,
-                      data: { room_total: parseFloat(selected.amount_due) || 0, nights: n, check_in: selected.check_in, check_out: selected.check_out, items: ch },
-                      created_at: new Date().toISOString(), expires_at: expiresAt,
-                    })
-                    setSelected(null)
-                    setConfirm({ title: 'Rechnung gesendet', message: `Rechnung an Gast-Display gesendet. Warten Sie bis der Gast unterschrieben hat — die Zahlungsart-Auswahl erscheint automatisch.`, confirmLabel: 'OK', confirmColor: '#10b981', onConfirm: () => setConfirm(null) })
-                  }} style={{ ...s.actionBtn, background: 'rgba(139,92,246,0.08)', color: '#8b5cf6', border: '1px solid rgba(139,92,246,0.2)' }}>
-                    Check-out: Rechnung an Gast-Display
-                  <button onClick={async () => { const ch = await loadInvoiceData(selected); openInvoicePDF(selected, ch) }} style={{ ...s.actionBtn, background: 'rgba(59,130,246,0.08)', color: '#3b82f6', border: '1px solid rgba(59,130,246,0.2)' }}>
-                    PDF Rechnung drucken
-                  </button>
-                </>}
+                )}
                 <button onClick={() => startEdit(selected)} style={s.actionBtn}>
                   Buchung bearbeiten
                 </button>
@@ -785,8 +740,11 @@ export default function Buchungen() {
         </div>
       )}
 
-      {/* Checkout Invoice Preview */}
-      {checkoutPreview && (
+      {/* Checkout Wizard */}
+      {checkoutBooking && <CheckoutWizard booking={checkoutBooking} onDone={() => { setCheckoutBooking(null); load() }} onCancel={() => setCheckoutBooking(null)} />}
+
+      {/* OLD Checkout Invoice Preview — disabled */}
+      {false && (
         <div style={s.overlay}>
           <div style={{ ...s.modal, maxWidth: 540, maxHeight: '90vh', overflow: 'auto' }} onClick={e => e.stopPropagation()}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>

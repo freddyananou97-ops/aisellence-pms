@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { supabase, subscribeToTable } from '../lib/supabase'
-import { openInvoicePDF } from '../lib/invoice'
-import { prepareCheckoutItems, finalizeCheckout as doFinalizeCheckout } from '../lib/checkout'
+import CheckoutWizard from '../components/CheckoutWizard'
 
 const TYPE_LABELS = { standard_single: 'Einzelzimmer', standard_double: 'Doppelzimmer', junior_suite: 'Junior Suite', suite: 'Suite', penthouse: 'Penthouse' }
 
@@ -15,10 +14,7 @@ export default function Zimmer() {
   const [selected, setSelected] = useState(null)
   const [noteText, setNoteText] = useState('')
   const [savingNote, setSavingNote] = useState(false)
-  const [checkoutPreview, setCheckoutPreview] = useState(null)
-  const [checkoutItems, setCheckoutItems] = useState([])
-  const [newItemLabel, setNewItemLabel] = useState('')
-  const [newItemAmount, setNewItemAmount] = useState('')
+  const [checkoutBooking, setCheckoutBooking] = useState(null)
 
   const todayStr = new Date().toISOString().split('T')[0]
 
@@ -75,31 +71,7 @@ export default function Zimmer() {
     load()
   }
 
-  // Checkout flow (shared logic from lib/checkout.js)
-  const doCheckOut = async (booking) => {
-    const items = await prepareCheckoutItems(booking)
-    setCheckoutItems(items)
-    setCheckoutPreview(booking)
-    setSelected(null)
-    setNewItemLabel(''); setNewItemAmount('')
-  }
-
-  const updateCheckoutItem = (id, field, value) => {
-    setCheckoutItems(prev => prev.map(item => item.id === id ? { ...item, [field]: field === 'amount' ? parseFloat(value) || 0 : value } : item))
-  }
-
-  const removeCheckoutItem = (id) => setCheckoutItems(prev => prev.filter(item => item.id !== id))
-
-  const addCheckoutItem = () => {
-    if (!newItemLabel) return
-    setCheckoutItems(prev => [...prev, { id: `new-${Date.now()}`, type: 'Sonstige', details: newItemLabel, amount: parseFloat(newItemAmount) || 0 }])
-    setNewItemLabel(''); setNewItemAmount('')
-  }
-
-  const finalizeCheckout = async () => {
-    await doFinalizeCheckout(checkoutPreview, checkoutItems, 'Rechnung')
-    setCheckoutPreview(null); setCheckoutItems([]); load()
-  }
+  const startCheckout = (booking) => { setCheckoutBooking(booking); setSelected(null) }
 
   const floors = [...new Set(rooms.map(r => r.floor))].sort()
   if (floors.length === 0) floors.push(1, 2, 3)
@@ -278,7 +250,7 @@ export default function Zimmer() {
 
                   {/* Checkout Button */}
                   {booking.status === 'checked_in' && (
-                    <button onClick={() => doCheckOut(booking)} style={{ width: '100%', marginTop: 12, padding: 12, background: '#f59e0b', border: 'none', borderRadius: 10, fontSize: 13, fontWeight: 600, color: '#000', cursor: 'pointer', fontFamily: 'inherit' }}>Auschecken & Rechnung prüfen</button>
+                    <button onClick={() => startCheckout(booking)} style={{ width: '100%', marginTop: 12, padding: 12, background: '#f59e0b', border: 'none', borderRadius: 10, fontSize: 13, fontWeight: 600, color: '#000', cursor: 'pointer', fontFamily: 'inherit' }}>Gast auschecken</button>
                   )}
                 </> : (
                   <div style={{ padding: '24px 0', textAlign: 'center', color: 'var(--textDim)', fontSize: 13 }}>Kein Gast eingecheckt</div>
@@ -289,8 +261,11 @@ export default function Zimmer() {
         </div>
       )}
 
-      {/* Checkout Invoice Preview */}
-      {checkoutPreview && (
+      {/* Checkout Wizard */}
+      {checkoutBooking && <CheckoutWizard booking={checkoutBooking} onDone={() => { setCheckoutBooking(null); load() }} onCancel={() => setCheckoutBooking(null)} />}
+
+      {/* OLD Checkout — disabled */}
+      {false && (
         <div style={s.overlay}>
           <div style={{ ...s.modal, maxWidth: 540, maxHeight: '90vh', overflow: 'auto' }} onClick={e => e.stopPropagation()}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
