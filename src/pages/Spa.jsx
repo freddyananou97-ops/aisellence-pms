@@ -35,19 +35,24 @@ export default function Spa() {
   const todayStr = new Date().toISOString().split('T')[0]
 
   const load = useCallback(async () => {
-    const weekStart = new Date(date); weekStart.setDate(weekStart.getDate() - weekStart.getDay() + 1)
-    const weekEnd = new Date(weekStart); weekEnd.setDate(weekEnd.getDate() + 6)
-    const [t, b, rm, th, hb, ab, lb] = await Promise.all([
-      fetchSpaTreatments(),
-      fetchSpaBookings(date),
-      supabase.from('spa_rooms').select('*').eq('active', true).order('sort_order'),
-      supabase.from('spa_therapists').select('*').eq('active', true).order('name'),
-      supabase.from('bookings').select('*').eq('status', 'checked_in'),
-      supabase.from('spa_bookings').select('*').gte('date', weekStart.toISOString().split('T')[0]).lte('date', weekEnd.toISOString().split('T')[0]).order('time'),
-      supabase.from('spa_bookings').select('*').order('date', { ascending: false }).order('time', { ascending: false }).limit(200),
-    ])
-    setTreatments(t); setBookings(b); setSpaRooms(rm.data || []); setTherapists(th.data || [])
-    setHotelBookings(hb.data || []); setAllBookings(ab.data || []); setListBookings(lb.data || []); setLoading(false)
+    try {
+      const ws = new Date(date); ws.setDate(ws.getDate() - ws.getDay() + 1)
+      const we = new Date(ws); we.setDate(we.getDate() + 6)
+      const wsStr = ws.toISOString().split('T')[0]
+      const weStr = we.toISOString().split('T')[0]
+      const [t, b, rm, th, hb, ab, lb] = await Promise.all([
+        fetchSpaTreatments(),
+        fetchSpaBookings(date),
+        supabase.from('spa_rooms').select('*').eq('active', true).order('sort_order').then(r => r).catch(() => ({ data: [] })),
+        supabase.from('spa_therapists').select('*').eq('active', true).order('name').then(r => r).catch(() => ({ data: [] })),
+        supabase.from('bookings').select('*').eq('status', 'checked_in'),
+        supabase.from('spa_bookings').select('*').gte('date', wsStr).lte('date', weStr).order('time'),
+        supabase.from('spa_bookings').select('*').order('date', { ascending: false }).order('time', { ascending: false }).limit(200),
+      ])
+      setTreatments(t); setBookings(b); setSpaRooms(rm.data || []); setTherapists(th.data || [])
+      setHotelBookings(hb.data || []); setAllBookings(ab.data || []); setListBookings(lb.data || [])
+    } catch (e) { console.error('Spa load error:', e) }
+    setLoading(false)
   }, [date])
 
   useEffect(() => { load(); const u = subscribeToTable('spa_bookings', () => load()); return u }, [load])
@@ -132,9 +137,10 @@ export default function Spa() {
 
   const rooms = spaRooms.length > 0 ? spaRooms : [{ id: 'r1', name: 'Raum 1 — Massage' }, { id: 'r2', name: 'Raum 2 — Gesicht' }, { id: 'r3', name: 'Raum 3 — Beauty' }, { id: 'r4', name: 'Sauna' }]
 
-  // Week view dates
-  const weekStart = new Date(date); weekStart.setDate(weekStart.getDate() - weekStart.getDay() + 1)
-  const weekDays = Array.from({ length: 7 }, (_, i) => { const d = new Date(weekStart); d.setDate(d.getDate() + i); return d.toISOString().split('T')[0] })
+  // Week view dates (use T12:00 to avoid timezone rollover issues)
+  const weekStartD = new Date(date + 'T12:00:00')
+  weekStartD.setDate(weekStartD.getDate() - ((weekStartD.getDay() + 6) % 7)) // Monday
+  const weekDays = Array.from({ length: 7 }, (_, i) => { const d = new Date(weekStartD); d.setDate(d.getDate() + i); return d.toISOString().split('T')[0] })
 
   if (loading) return <div style={st.content}><div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '60vh', color: 'var(--textMuted)' }}>Laden...</div></div>
 
@@ -233,12 +239,14 @@ export default function Spa() {
           {weekDays.map(day => {
             const dayB = allBookings.filter(b => b.date === day && b.status !== 'cancelled' && b.status !== 'no_show')
             const isToday = day === todayStr
+            const openDay = () => { setDate(day); setView('tag') }
             return (
-              <div key={day} onClick={() => { setDate(day); setView('tag') }} style={{
+              <button key={day} onClick={openDay} style={{
                 background: 'var(--bgCard)', border: `1px solid ${isToday ? '#8b5cf6' : 'var(--borderLight)'}`, borderRadius: 10, padding: 12, cursor: 'pointer', minHeight: 140,
+                textAlign: 'left', fontFamily: 'inherit',
               }}>
-                <div style={{ fontSize: 10, color: isToday ? '#8b5cf6' : 'var(--textMuted)', fontWeight: 500 }}>{new Date(day + 'T00:00').toLocaleDateString('de-DE', { weekday: 'short' })}</div>
-                <div style={{ fontSize: 18, fontWeight: 600, color: isToday ? '#8b5cf6' : 'var(--text)' }}>{new Date(day + 'T00:00').getDate()}</div>
+                <div style={{ fontSize: 10, color: isToday ? '#8b5cf6' : 'var(--textMuted)', fontWeight: 500 }}>{new Date(day + 'T12:00').toLocaleDateString('de-DE', { weekday: 'short' })}</div>
+                <div style={{ fontSize: 18, fontWeight: 600, color: isToday ? '#8b5cf6' : 'var(--text)' }}>{new Date(day + 'T12:00').getDate()}</div>
                 {dayB.length > 0 ? (
                   <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 3 }}>
                     {dayB.slice(0, 5).map(b => (
@@ -249,7 +257,7 @@ export default function Spa() {
                     {dayB.length > 5 && <div style={{ fontSize: 9, color: 'var(--textDim)' }}>+{dayB.length - 5} weitere</div>}
                   </div>
                 ) : <div style={{ fontSize: 9, color: 'var(--textDim)', marginTop: 8 }}>—</div>}
-              </div>
+              </button>
             )
           })}
         </div>
