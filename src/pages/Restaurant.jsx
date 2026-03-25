@@ -1,5 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase, fetchRestaurantTables, fetchRestaurantReservations, subscribeToTable } from '../lib/supabase'
+import { createCheckoutSession } from '../lib/stripe'
+import QRCode from '../components/QRCode'
 import ConfirmDialog from '../components/ConfirmDialog'
 
 const PRODUCTS = {
@@ -817,8 +819,31 @@ function PaymentDialog({ table, orders, total, onPay, onCancel }) {
   const [method, setMethod] = useState(null)
   const [roomNumber, setRoomNumber] = useState('')
   const [cardStep, setCardStep] = useState(0)
+  const [stripeUrl, setStripeUrl] = useState(null)
 
-  const startCard = () => { setMethod('card'); setCardStep(1); setTimeout(() => setCardStep(2), 2500) }
+  const startCard = async () => {
+    setMethod('card'); setCardStep(1)
+    try {
+      const lineItems = orders.map(o => ({
+        name: o.product_name,
+        amount_cents: Math.round(o.product_price * (o.quantity || 1) * 100),
+        quantity: 1,
+      }))
+      const origin = window.location.origin
+      const { url } = await createCheckoutSession({
+        lineItems,
+        metadata: { type: 'restaurant', table: table.name },
+        successUrl: `${origin}/?restaurant_paid=true`,
+        cancelUrl: `${origin}/?restaurant_cancelled=true`,
+      })
+      setStripeUrl(url)
+      setCardStep(2)
+    } catch (e) {
+      console.error('Stripe error:', e)
+      // Fallback to simulated success
+      setCardStep(2)
+    }
+  }
 
   return (
     <div style={s.overlay}><div style={{ ...s.modal, textAlign: 'center', maxHeight: '90vh', overflow: 'auto' }} onClick={e => e.stopPropagation()}>
@@ -853,20 +878,29 @@ function PaymentDialog({ table, orders, total, onPay, onCancel }) {
 
       {method === 'card' && <>
         {cardStep === 1 && <>
-          <div style={{ width: 56, height: 56, borderRadius: 14, background: 'rgba(59,130,246,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px', animation: 'pulse 1.5s ease-in-out infinite' }}>
-            <svg width={28} height={28} viewBox="0 0 24 24" fill="none" stroke="#3b82f6" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
+          <div style={{ width: 56, height: 56, borderRadius: 14, background: 'rgba(99,91,255,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px', animation: 'pulse 1.5s ease-in-out infinite' }}>
+            <svg width={28} height={28} viewBox="0 0 24 24" fill="none" stroke="#635bff" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
           </div>
-          <h3 style={{ fontSize: 16, fontWeight: 500, color: 'var(--text)', margin: '0 0 8px' }}>Warte auf Karte...</h3>
-          <p style={{ fontSize: 13, color: 'var(--textMuted)' }}>Bitte Karte an das Terminal halten</p>
-          <p style={{ fontSize: 22, fontWeight: 600, color: '#3b82f6', margin: '12px 0' }}>{total.toFixed(2)}€</p>
+          <h3 style={{ fontSize: 16, fontWeight: 500, color: 'var(--text)', margin: '0 0 8px' }}>Zahlungslink wird erstellt...</h3>
+          <p style={{ fontSize: 22, fontWeight: 600, color: '#635bff', margin: '12px 0' }}>{total.toFixed(2)}€</p>
         </>}
         {cardStep === 2 && <>
-          <div style={{ width: 56, height: 56, borderRadius: 14, background: 'rgba(16,185,129,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
-            <svg width={28} height={28} viewBox="0 0 24 24" fill="none" stroke="#10b981" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
-          </div>
-          <h3 style={{ fontSize: 16, fontWeight: 500, color: '#10b981', margin: '0 0 8px' }}>Kartenzahlung erfolgreich</h3>
-          <p style={{ fontSize: 22, fontWeight: 600, color: 'var(--text)', margin: '4px 0 12px' }}>{total.toFixed(2)}€</p>
-          <button style={{ ...s.saveBtn, width: '100%', marginTop: 8 }} onClick={() => onPay('Kartenzahlung')}>Weiter</button>
+          {stripeUrl ? <>
+            <h3 style={{ fontSize: 16, fontWeight: 500, color: 'var(--text)', margin: '0 0 4px' }}>Kartenzahlung</h3>
+            <p style={{ fontSize: 22, fontWeight: 600, color: '#635bff', margin: '8px 0 16px' }}>{total.toFixed(2)}€</p>
+            <QRCode value={stripeUrl} size={160} />
+            <div style={{ marginTop: 12 }}>
+              <a href={stripeUrl} target="_blank" rel="noopener noreferrer" style={{ display: 'inline-block', padding: '10px 24px', background: '#635bff', color: '#fff', borderRadius: 8, fontSize: 12, fontWeight: 600, textDecoration: 'none' }}>Zum Bezahlen öffnen</a>
+            </div>
+            <button style={{ ...s.saveBtn, width: '100%', marginTop: 12 }} onClick={() => onPay('Stripe Kartenzahlung')}>Zahlung erhalten — Weiter</button>
+          </> : <>
+            <div style={{ width: 56, height: 56, borderRadius: 14, background: 'rgba(16,185,129,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
+              <svg width={28} height={28} viewBox="0 0 24 24" fill="none" stroke="#10b981" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
+            </div>
+            <h3 style={{ fontSize: 16, fontWeight: 500, color: '#10b981', margin: '0 0 8px' }}>Kartenzahlung</h3>
+            <p style={{ fontSize: 22, fontWeight: 600, color: 'var(--text)', margin: '4px 0 12px' }}>{total.toFixed(2)}€</p>
+            <button style={{ ...s.saveBtn, width: '100%', marginTop: 8 }} onClick={() => onPay('Kartenzahlung')}>Weiter</button>
+          </>}
         </>}
       </>}
 

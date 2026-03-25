@@ -1,5 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../lib/supabase'
+import { createCheckoutSession, buildLineItems } from '../lib/stripe'
+import QRCode from '../components/QRCode'
 
 // ============================================================
 // TRANSLATIONS
@@ -410,6 +412,9 @@ function InvoiceView({ session, onComplete }) {
   const netto19 = chargesTotal / 1.19; const mwst19 = chargesTotal - netto19
   const [signature, setSignature] = useState(null)
   const [submitting, setSubmitting] = useState(false)
+  const [stripeUrl, setStripeUrl] = useState(null)
+  const [stripeLoading, setStripeLoading] = useState(false)
+  const [stripeError, setStripeError] = useState(null)
 
   const handleSign = async () => {
     if (!signature || submitting) return
@@ -417,6 +422,24 @@ function InvoiceView({ session, onComplete }) {
     await supabase.from('guest_display_sessions').update({ status: 'signed', signature }).eq('id', session.id)
     setSubmitting(false)
     onComplete()
+  }
+
+  const handleStripePayment = async () => {
+    setStripeLoading(true); setStripeError(null)
+    try {
+      const lineItems = buildLineItems({ roomTotal, nights: data.nights, room: session.room, charges: items })
+      const origin = window.location.origin
+      const { url } = await createCheckoutSession({
+        lineItems,
+        metadata: { booking_id: session.booking_id || '', guest_name: session.guest_name, room: session.room, session_id: session.id || '' },
+        successUrl: `${origin}/guest-display?payment=success&session_id={CHECKOUT_SESSION_ID}&gds=${session.id || ''}`,
+        cancelUrl: `${origin}/guest-display?payment=cancelled`,
+      })
+      setStripeUrl(url)
+    } catch (err) {
+      setStripeError(err.message)
+    }
+    setStripeLoading(false)
   }
 
   return (
@@ -473,6 +496,37 @@ function InvoiceView({ session, onComplete }) {
           </div>
         </div>
 
+        {/* Stripe Payment */}
+        <div style={{ background: '#fff', borderRadius: 16, padding: 24, border: '1px solid #e5e7eb', marginBottom: 24 }}>
+          <h2 style={{ fontSize: 15, fontWeight: 500, color: '#1a1a1a', margin: '0 0 4px' }}>Online bezahlen</h2>
+          <p style={{ fontSize: 12, color: '#9ca3af', margin: '0 0 16px' }}>Bezahlen Sie bequem mit Kreditkarte, Apple Pay oder Google Pay.</p>
+
+          {!stripeUrl ? (
+            <button disabled={stripeLoading} onClick={handleStripePayment} style={{
+              width: '100%', padding: 16, border: 'none', borderRadius: 12, fontSize: 15, fontWeight: 600,
+              cursor: stripeLoading ? 'default' : 'pointer', fontFamily: 'inherit',
+              background: '#635bff', color: '#fff',
+            }}>
+              {stripeLoading ? 'Zahlungslink wird erstellt...' : `Jetzt ${grandTotal.toFixed(2)} € bezahlen`}
+            </button>
+          ) : (
+            <div style={{ textAlign: 'center' }}>
+              <QRCode value={stripeUrl} size={180} />
+              <div style={{ marginTop: 16 }}>
+                <a href={stripeUrl} target="_blank" rel="noopener noreferrer" style={{
+                  display: 'inline-block', padding: '14px 28px', background: '#635bff', color: '#fff',
+                  borderRadius: 10, fontSize: 14, fontWeight: 600, textDecoration: 'none',
+                }}>
+                  Zur Bezahlung
+                </a>
+              </div>
+              <p style={{ fontSize: 11, color: '#9ca3af', marginTop: 8 }}>Oder QR-Code mit Ihrem Handy scannen</p>
+            </div>
+          )}
+          {stripeError && <div style={{ marginTop: 8, fontSize: 12, color: '#ef4444' }}>{stripeError}</div>}
+        </div>
+
+        {/* Signature */}
         <div style={{ background: '#fff', borderRadius: 16, padding: 24, border: '1px solid #e5e7eb', marginBottom: 24 }}>
           <h2 style={{ fontSize: 15, fontWeight: 500, color: '#1a1a1a', margin: '0 0 4px' }}>Unterschrift</h2>
           <p style={{ fontSize: 12, color: '#9ca3af', margin: '0 0 12px' }}>Hiermit bestätige ich den Erhalt und die Richtigkeit der Rechnung.</p>
@@ -501,8 +555,29 @@ export default function GuestDisplay() {
   const [preCheckinLoading, setPreCheckinLoading] = useState(false)
 
   useEffect(() => {
-    // Check for pre-check-in via URL parameter: ?booking=BOOKING_ID
     const params = new URLSearchParams(window.location.search)
+
+    // Handle Stripe payment success redirect
+    const paymentStatus = params.get('payment')
+    const gdsId = params.get('gds')
+    if (paymentStatus === 'success') {
+      // Mark session as paid
+      if (gdsId) {
+        supabase.from('guest_display_sessions').update({ status: 'paid' }).eq('id', gdsId).then(() => {
+          // Also mark booking as checked_out if booking_id exists
+          supabase.from('guest_display_sessions').select('booking_id').eq('id', gdsId).maybeSingle().then(({ data: sess }) => {
+            if (sess?.booking_id) {
+              supabase.from('bookings').update({ status: 'checked_out', payment_method: 'Stripe Online', checked_out_at: new Date().toISOString() }).eq('booking_id', sess.booking_id)
+            }
+          })
+        })
+      }
+      setShowComplete(true)
+      setTimeout(() => { setShowComplete(false); window.history.replaceState({}, '', '/guest-display') }, 4000)
+      return
+    }
+
+    // Check for pre-check-in via URL parameter: ?booking=BOOKING_ID
     const bookingParam = params.get('booking')
 
     if (bookingParam) {
