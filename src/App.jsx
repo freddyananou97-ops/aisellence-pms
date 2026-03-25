@@ -5,6 +5,7 @@ import { getAllowedModules, getDefaultRoute } from './lib/roles'
 
 import Sidebar from './components/Sidebar'
 import Login from './pages/Login'
+import GuestDisplay from './pages/GuestDisplay'
 import Dashboard from './pages/Dashboard'
 import Buchungen from './pages/Buchungen'
 import Kalender from './pages/Kalender'
@@ -21,6 +22,7 @@ import Wartung from './pages/Wartung'
 import Feedback from './pages/Feedback'
 import Fruehstueck from './pages/Fruehstueck'
 import Settings from './pages/Settings'
+import Meldeschein from './pages/Meldeschein'
 
 function AppContent() {
   const [user, setUser] = useState(null)
@@ -33,6 +35,9 @@ function AppContent() {
     setTier(u.tier || 'pms')
     setPage(getDefaultRoute(u.role))
   }
+
+  // Guest Display: no auth, no sidebar, standalone route
+  if (window.location.hash === '#/guest-display' || page === '/guest-display') return <GuestDisplay />
 
   if (!user) return <Login onLogin={handleLogin} />
 
@@ -57,6 +62,7 @@ function AppContent() {
       case '/feedback': return <Feedback />
       case '/fruehstueck': return <Fruehstueck />
       case '/settings': return <Settings />
+      case '/meldeschein': return <Meldeschein />
       default: return <Dashboard user={user} />
     }
   }

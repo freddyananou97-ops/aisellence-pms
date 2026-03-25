@@ -125,6 +125,15 @@ export async function fetchSpaBookings(date) {
 }
 
 // ============================================================
+// GUEST DISPLAY SESSIONS
+// ============================================================
+export async function fetchGuestDisplaySessions() {
+  const { data, error } = await supabase.from('guest_display_sessions').select('*').order('created_at', { ascending: false })
+  if (error) console.error('fetchGuestDisplaySessions:', error)
+  return data || []
+}
+
+// ============================================================
 // AUTH
 // ============================================================
 export async function loginEmployee(name, pin) {
