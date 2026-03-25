@@ -334,17 +334,27 @@ export default function Meldeschein() {
               ))}
             </div>
 
-            {selectedForm.data?.main_guest && (
-              <div style={{ marginBottom: 16 }}>
-                <div style={{ fontSize: 10, color: 'var(--textMuted)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6 }}>Hauptgast</div>
-                {Object.entries(selectedForm.data.main_guest).map(([k, v]) => v && (
-                  <div key={k} style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', borderBottom: '1px solid var(--border)' }}>
-                    <span style={{ fontSize: 11, color: 'var(--textMuted)' }}>{k}</span>
-                    <span style={{ fontSize: 11, color: 'var(--textSec)' }}>{v}</span>
-                  </div>
-                ))}
-              </div>
-            )}
+            {selectedForm.data?.main_guest && (() => {
+              const g = selectedForm.data.main_guest
+              const fields = [
+                ['Vorname', g.first_name], ['Nachname', g.last_name], ['Geburtsdatum', g.birth_date],
+                ['Staatsangehörigkeit', g.nationality], ['Straße', g.street],
+                ['PLZ / Ort', [g.zip, g.city].filter(Boolean).join(' ')], ['Land', g.country],
+                ['Telefon', g.phone || [g.phone_code, g.phone_number].filter(Boolean).join(' ') || null],
+                ['Ausweistyp', g.id_type], ['Ausweisnummer', g.id_number], ['Sprache', g.guest_language],
+              ]
+              return (
+                <div style={{ marginBottom: 16 }}>
+                  <div style={{ fontSize: 10, color: 'var(--textMuted)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6 }}>Hauptgast</div>
+                  {fields.map(([l, v]) => v ? (
+                    <div key={l} style={{ display: 'flex', justifyContent: 'space-between', padding: '5px 0', borderBottom: '1px solid var(--border)' }}>
+                      <span style={{ fontSize: 11, color: 'var(--textMuted)' }}>{l}</span>
+                      <span style={{ fontSize: 11, color: 'var(--textSec)', textAlign: 'right' }}>{v}</span>
+                    </div>
+                  ) : null)}
+                </div>
+              )
+            })()}
 
             {selectedForm.data?.companions?.length > 0 && (
               <div style={{ marginBottom: 16 }}>
