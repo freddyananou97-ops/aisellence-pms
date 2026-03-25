@@ -1,21 +1,10 @@
 import { useState, useEffect, useCallback } from 'react'
 import { subscribeToMultiple } from '../lib/supabase'
 
-const REALTIME_TABLES = [
-  'bookings',
-  'complaints',
-  'maintenance',
-  'service_requests',
-  'shift_logs',
-  'housekeeping',
-  'feedback',
-  'minibar_consumption',
-  'restaurant_tables',
-  'restaurant_reservations',
-  'spa_bookings',
-]
+// Only subscribe to tables that actually need live updates on the Dashboard
+const DASHBOARD_TABLES = ['bookings', 'service_requests', 'maintenance']
 
-export function useRealtime(fetchFn) {
+export function useRealtime(fetchFn, tables) {
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
   const [lastUpdate, setLastUpdate] = useState(new Date())
@@ -34,9 +23,10 @@ export function useRealtime(fetchFn) {
 
   useEffect(() => {
     refresh()
-    const unsubscribe = subscribeToMultiple(REALTIME_TABLES, () => refresh())
+    const realtimeTables = tables || DASHBOARD_TABLES
+    const unsubscribe = subscribeToMultiple(realtimeTables, () => refresh())
     return unsubscribe
-  }, [refresh])
+  }, [refresh, tables])
 
   return { data, loading, lastUpdate, refresh }
 }
@@ -62,7 +52,8 @@ export function useDashboardData(fetchFunctions) {
 
   useEffect(() => {
     refresh()
-    const unsubscribe = subscribeToMultiple(REALTIME_TABLES, () => refresh())
+    // Dashboard only needs live updates from these core tables
+    const unsubscribe = subscribeToMultiple(DASHBOARD_TABLES, () => refresh())
     return unsubscribe
   }, [refresh])
 

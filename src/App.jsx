@@ -3,6 +3,7 @@ import { ThemeProvider, useTheme } from './lib/theme'
 import { TierProvider, useTier } from './lib/tier'
 import { getAllowedModules, getDefaultRoute } from './lib/roles'
 
+import ErrorBoundary from './components/ErrorBoundary'
 import Sidebar from './components/Sidebar'
 import Login from './pages/Login'
 import GuestDisplay from './pages/GuestDisplay'
@@ -24,25 +25,58 @@ import Fruehstueck from './pages/Fruehstueck'
 import Settings from './pages/Settings'
 import Meldeschein from './pages/Meldeschein'
 
+const SESSION_KEY = 'aisellence-session'
+const SESSION_MAX_AGE = 12 * 60 * 60 * 1000 // 12 hours
+
+function saveSession(user) {
+  localStorage.setItem(SESSION_KEY, JSON.stringify({ ...user, _ts: Date.now() }))
+}
+
+function loadSession() {
+  try {
+    const raw = localStorage.getItem(SESSION_KEY)
+    if (!raw) return null
+    const session = JSON.parse(raw)
+    if (Date.now() - session._ts > SESSION_MAX_AGE) { localStorage.removeItem(SESSION_KEY); return null }
+    return session
+  } catch { return null }
+}
+
+function clearSession() {
+  localStorage.removeItem(SESSION_KEY)
+}
+
 function AppContent() {
-  const [user, setUser] = useState(null)
+  const [user, setUser] = useState(() => loadSession())
   const [page, setPage] = useState('/')
   const [transitioning, setTransitioning] = useState(false)
   const [showLogin, setShowLogin] = useState(true)
-  const [dashboardReady, setDashboardReady] = useState(false)
+  const [dashboardReady, setDashboardReady] = useState(!loadSession()) // skip transition if restoring session
   const { theme, resolvedTheme } = useTheme()
   const { tier, setTier } = useTier()
 
+  // Restore tier from session
+  useEffect(() => {
+    if (user?.tier) setTier(user.tier)
+    if (user) { setShowLogin(false); setDashboardReady(true) }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
   const handleLogin = (u) => {
-    // Start transition
+    saveSession(u)
     setTransitioning(true)
     setUser(u)
     setTier(u.tier || 'pms')
     setPage(getDefaultRoute(u.role))
-    // After a brief moment, show dashboard underneath
     setTimeout(() => setDashboardReady(true), 200)
-    // After full transition, remove login overlay
     setTimeout(() => { setShowLogin(false); setTransitioning(false) }, 1600)
+  }
+
+  const handleLogout = () => {
+    clearSession()
+    setUser(null)
+    setShowLogin(true)
+    setDashboardReady(false)
+    setPage('/')
   }
 
   // Guest Display: no auth, no sidebar, standalone route
@@ -103,12 +137,13 @@ function AppContent() {
         '--bg': theme.bg, '--bgSec': theme.bgSec, '--bgCard': theme.bgCard, '--border': theme.border, '--borderLight': theme.borderLight,
         '--text': theme.text, '--textSec': theme.textSec, '--textMuted': theme.textMuted, '--textDim': theme.textDim,
         '--active': theme.active, '--inputBg': theme.inputBg, '--overlayBg': theme.overlayBg, '--modalBg': theme.modalBg, '--modalBorder': theme.modalBorder,
-        // Legacy aliases for existing pages
         '--bg-primary': theme.bg, '--bg-secondary': theme.bgSec, '--bg-card': theme.bgCard, '--bg-active': theme.active,
         '--border-light': theme.borderLight, '--text-primary': theme.text, '--text-secondary': theme.textMuted, '--text-muted': theme.textDim, '--text-dim': theme.textDim,
       }}>
-        <Sidebar page={page} setPage={setPage} user={user} onLogout={() => { setUser(null); setShowLogin(true); setDashboardReady(false) }} allowed={allowed} />
-        <main className="main-content" style={{ flex: 1, overflow: 'auto' }}>{renderPage()}</main>
+        <Sidebar page={page} setPage={setPage} user={user} onLogout={handleLogout} allowed={allowed} />
+        <main className="main-content" style={{ flex: 1, overflow: 'auto' }}>
+          <ErrorBoundary>{renderPage()}</ErrorBoundary>
+        </main>
       </div>
       <style>{`
         @media (max-width: 768px) {

@@ -2,7 +2,6 @@ import { useState, useEffect, useRef } from 'react'
 import * as THREE from 'three'
 import Logo from '../components/Logo'
 import { loginEmployee } from '../lib/supabase'
-import { ROLES } from '../lib/roles'
 
 function getLoginMode() {
   const h = new Date().getHours()
@@ -124,15 +123,9 @@ export default function Login({ onLogin, transitioning }) {
   const [tier, setTier] = useState('pms')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
-  const [demoMode, setDemoMode] = useState(false)
-  const [demoRole, setDemoRole] = useState('admin')
   const [showPin, setShowPin] = useState(false)
 
   const handleLogin = async () => {
-    if (demoMode) {
-      onLogin({ name: name || 'Demo User', role: demoRole, hotel: 'Maritim Hotel Ingolstadt', tier })
-      return
-    }
     if (!name || !pin) { setError('Name und PIN eingeben'); return }
     setLoading(true); setError('')
     const employee = await loginEmployee(name, pin)
@@ -253,24 +246,6 @@ export default function Login({ onLogin, transitioning }) {
               </svg>
             </button>
           </div>
-
-          {/* Demo mode */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
-            <button onClick={() => setDemoMode(!demoMode)} style={{ width: 36, height: 20, borderRadius: 10, border: 'none', cursor: 'pointer', position: 'relative', background: demoMode ? '#10b981' : c.toggleOff, transition: '0.2s' }}>
-              <div style={{ width: 14, height: 14, borderRadius: 7, background: '#fff', position: 'absolute', top: 3, left: demoMode ? 19 : 3, transition: '0.2s' }} />
-            </button>
-            <span style={{ fontSize: 11, color: c.textMuted }}>Demo-Modus</span>
-          </div>
-
-          {demoMode && (
-            <>
-              <label style={{ display: 'block', fontSize: 10, fontWeight: 500, color: c.label, marginBottom: 6, textTransform: 'uppercase', letterSpacing: 1 }}>Rolle (Demo)</label>
-              <select style={{ width: '100%', padding: '12px 16px', border: `1px solid ${c.inputBorder}`, borderRadius: 10, fontSize: 14, outline: 'none', background: c.inputBg, color: c.inputText, boxSizing: 'border-box', marginBottom: 16, fontFamily: 'inherit' }}
-                value={demoRole} onChange={e => setDemoRole(e.target.value)}>
-                {Object.entries(ROLES).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
-              </select>
-            </>
-          )}
 
           {error && <div style={{ color: '#ef4444', fontSize: 12, marginBottom: 12, textAlign: 'center' }}>{error}</div>}
 
