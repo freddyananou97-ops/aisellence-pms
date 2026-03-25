@@ -6,16 +6,15 @@ import { ROLES } from '../lib/roles'
 
 function getLoginMode() {
   const h = new Date().getHours()
-  if (h >= 6 && h < 18) return 'light'
+  if (h >= 3 && h < 18) return 'light'
   return 'dark'
 }
 
 function getGreeting() {
   const h = new Date().getHours()
-  if (h >= 6 && h < 12) return 'Guten Morgen'
+  if (h >= 3 && h < 12) return 'Guten Morgen'
   if (h >= 12 && h < 18) return 'Guten Tag'
-  if (h >= 18 && h < 22) return 'Guten Abend'
-  return 'Gute Nacht'
+  return 'Guten Abend'
 }
 
 function ParticleWave({ exiting, light }) {
