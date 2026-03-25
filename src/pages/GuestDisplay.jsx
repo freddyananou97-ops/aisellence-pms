@@ -261,10 +261,17 @@ function CheckinForm({ session, onComplete }) {
     }
 
     if (session.booking_id) {
-      await supabase.from('bookings').update({ meldeschein_completed: true }).eq('booking_id', session.booking_id)
+      const isPreCheckin = session._isPreCheckin
+      await supabase.from('bookings').update({
+        meldeschein_completed: true,
+        ...(isPreCheckin ? { meldeschein_vorab: true } : {}),
+      }).eq('booking_id', session.booking_id)
     }
 
-    await supabase.from('guest_display_sessions').update({ status: 'completed', signature }).eq('id', session.id)
+    // Update session (skip for pre-check-in which has no DB row)
+    if (session.id) {
+      await supabase.from('guest_display_sessions').update({ status: 'completed', signature }).eq('id', session.id)
+    }
     setSubmitting(false)
     onComplete()
   }
@@ -490,8 +497,35 @@ function InvoiceView({ session, onComplete }) {
 export default function GuestDisplay() {
   const [session, setSession] = useState(null)
   const [showComplete, setShowComplete] = useState(false)
+  const [preCheckinBooking, setPreCheckinBooking] = useState(null)
+  const [preCheckinLoading, setPreCheckinLoading] = useState(false)
 
   useEffect(() => {
+    // Check for pre-check-in via URL parameter: ?booking=BOOKING_ID
+    const params = new URLSearchParams(window.location.search)
+    const bookingParam = params.get('booking')
+
+    if (bookingParam) {
+      setPreCheckinLoading(true)
+      supabase.from('bookings').select('*').eq('booking_id', bookingParam).maybeSingle().then(({ data: booking }) => {
+        if (booking) {
+          // Create a virtual session from the booking for the CheckinForm
+          setPreCheckinBooking({
+            id: null, // no guest_display_session row
+            type: 'checkin',
+            room: booking.room,
+            guest_name: booking.guest_name,
+            booking_id: booking.booking_id,
+            data: {},
+            _isPreCheckin: true,
+          })
+        }
+        setPreCheckinLoading(false)
+      })
+      return // skip realtime setup for pre-check-in mode
+    }
+
+    // Normal mode: check for active session and listen via realtime
     const checkActive = async () => {
       const { data } = await supabase.from('guest_display_sessions').select('*').eq('status', 'active').order('created_at', { ascending: false }).limit(1)
       if (data && data.length > 0) setSession(data[0])
@@ -509,7 +543,17 @@ export default function GuestDisplay() {
 
   const handleComplete = () => {
     setShowComplete(true)
-    setTimeout(() => { setSession(null); setShowComplete(false) }, 3000)
+    setTimeout(() => { setSession(null); setPreCheckinBooking(null); setShowComplete(false) }, 3000)
+  }
+
+  if (preCheckinLoading) {
+    return (
+      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f8f9fa' }}>
+        <div style={{ textAlign: 'center' }}>
+          <div style={{ fontSize: 16, color: '#6b7280' }}>Buchung wird geladen...</div>
+        </div>
+      </div>
+    )
   }
 
   if (showComplete) {
@@ -519,11 +563,19 @@ export default function GuestDisplay() {
           <svg width={36} height={36} viewBox="0 0 24 24" fill="none" stroke="#10b981" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
         </div>
         <h1 style={{ fontSize: 24, fontWeight: 400, color: '#1a1a1a', margin: '0 0 8px' }}>Vielen Dank!</h1>
-        <p style={{ fontSize: 15, color: '#6b7280' }}>{session?.type === 'invoice' ? 'Die Rechnung wurde bestätigt.' : 'Der Meldeschein wurde erfolgreich übermittelt.'}</p>
+        <p style={{ fontSize: 15, color: '#6b7280' }}>
+          {preCheckinBooking ? 'Der Meldeschein wurde vorab eingereicht. Wir freuen uns auf Ihren Aufenthalt!' : session?.type === 'invoice' ? 'Die Rechnung wurde bestätigt.' : 'Der Meldeschein wurde erfolgreich übermittelt.'}
+        </p>
       </div>
     )
   }
 
+  // Pre-check-in mode (from URL)
+  if (preCheckinBooking) {
+    return <CheckinForm session={preCheckinBooking} onComplete={handleComplete} />
+  }
+
+  // Normal realtime session mode
   if (session) {
     if (session.type === 'checkin') return <CheckinForm session={session} onComplete={handleComplete} />
     if (session.type === 'invoice') return <InvoiceView session={session} onComplete={handleComplete} />

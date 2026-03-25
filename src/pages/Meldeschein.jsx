@@ -22,7 +22,7 @@ export default function Meldeschein() {
     const [sessRes, formRes, bookRes] = await Promise.all([
       supabase.from('guest_display_sessions').select('*').order('created_at', { ascending: false }),
       supabase.from('registration_forms').select('*').order('created_at', { ascending: false }),
-      supabase.from('bookings').select('*').in('status', ['confirmed', 'checked_in']).order('check_in', { ascending: true }),
+      supabase.from('bookings').select('*').in('status', ['reserved', 'confirmed', 'checked_in']).order('check_in', { ascending: true }),
     ])
     setSessions(sessRes.data || [])
     setForms(formRes.data || [])
@@ -174,16 +174,16 @@ export default function Meldeschein() {
           {forms.length === 0 ? (
             <div style={{ padding: 32, textAlign: 'center', color: 'var(--textDim)', fontSize: 13 }}>Noch keine Meldescheine vorhanden</div>
           ) : forms.map(f => (
-            <div key={f.id} onClick={() => setSelectedForm(f)} style={{ display: 'grid', gridTemplateColumns: '120px 1fr 80px 100px 80px', padding: '12px 16px', borderBottom: '1px solid var(--border)', gap: 8, cursor: 'pointer', alignItems: 'center' }}>
-              <span style={{ fontSize: 12, color: 'var(--textMuted)' }}>{new Date(f.created_at).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: '2-digit' })}</span>
-              <span style={{ fontSize: 12, color: 'var(--textSec)' }}>{f.guest_name}</span>
-              <span style={{ fontSize: 12, color: 'var(--textMuted)' }}>{f.room}</span>
+            <button key={f.id} onClick={() => setSelectedForm(f)} style={{ display: 'grid', gridTemplateColumns: '120px 1fr 80px 100px 80px', padding: '12px 16px', borderBottom: '1px solid var(--border)', gap: 8, cursor: 'pointer', alignItems: 'center', width: '100%', textAlign: 'left', background: 'transparent', border: 'none', borderBottom: '1px solid var(--border)', fontFamily: 'inherit' }}>
+              <span style={{ fontSize: 12, color: 'var(--textMuted)' }}>{f.created_at ? new Date(f.created_at).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: '2-digit' }) : '—'}</span>
+              <span style={{ fontSize: 12, color: 'var(--textSec)' }}>{f.guest_name || '—'}</span>
+              <span style={{ fontSize: 12, color: 'var(--textMuted)' }}>{f.room || '—'}</span>
               <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                 <div style={{ width: 6, height: 6, borderRadius: '50%', background: f.status === 'completed' ? '#10b981' : '#f59e0b' }} />
                 <span style={{ fontSize: 10, color: f.status === 'completed' ? '#10b981' : '#f59e0b' }}>{f.status === 'completed' ? 'Ausgefüllt' : 'Offen'}</span>
               </div>
               <span style={{ fontSize: 10, color: f.signature ? '#10b981' : 'var(--textDim)' }}>{f.signature ? 'Signiert' : '—'}</span>
-            </div>
+            </button>
           ))}
         </div>
       )}
@@ -237,11 +237,11 @@ export default function Meldeschein() {
             <p style={{ fontSize: 12, color: 'var(--textMuted)', margin: '0 0 16px' }}>Der Meldeschein wird auf dem Gast-Display angezeigt.</p>
 
             {/* Quick select from bookings */}
-            {bookings.filter(b => b.status === 'checked_in' && !b.meldeschein_completed).length > 0 && (
+            {bookings.filter(b => (b.status === 'reserved' || b.status === 'confirmed') && !b.meldeschein_completed).length > 0 && (
               <div style={{ marginBottom: 16 }}>
-                <label style={s.label}>Schnellauswahl (eingecheckt, ohne Meldeschein)</label>
+                <label style={s.label}>Schnellauswahl (reserviert, ohne Meldeschein)</label>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                  {bookings.filter(b => b.status === 'checked_in' && !b.meldeschein_completed).slice(0, 8).map(b => (
+                  {bookings.filter(b => (b.status === 'reserved' || b.status === 'confirmed') && !b.meldeschein_completed).slice(0, 8).map(b => (
                     <button key={b.id} onClick={() => setNewCheckin({ room: b.room, guest_name: b.guest_name, booking_id: b.booking_id || '' })} style={{
                       padding: '8px 12px', borderRadius: 8, fontSize: 11, cursor: 'pointer', fontFamily: 'inherit',
                       background: newCheckin.room === b.room ? 'rgba(59,130,246,0.1)' : 'var(--bgCard)',
@@ -326,7 +326,7 @@ export default function Meldeschein() {
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 16 }}>
-              {[['Zimmer', selectedForm.room], ['Datum', new Date(selectedForm.created_at).toLocaleDateString('de-DE')], ['Status', selectedForm.status]].map(([l, v]) => (
+              {[['Zimmer', selectedForm.room], ['Datum', selectedForm.created_at ? new Date(selectedForm.created_at).toLocaleDateString('de-DE') : '—'], ['Status', selectedForm.status === 'completed' ? 'Ausgefüllt' : selectedForm.status], ['Buchungs-ID', selectedForm.booking_id || '—']].map(([l, v]) => (
                 <div key={l} style={{ padding: '8px 12px', background: 'var(--bgCard)', borderRadius: 8, border: '1px solid var(--borderLight)' }}>
                   <div style={{ fontSize: 9, color: 'var(--textDim)', textTransform: 'uppercase' }}>{l}</div>
                   <div style={{ fontSize: 12, color: 'var(--textSec)', marginTop: 2 }}>{v}</div>

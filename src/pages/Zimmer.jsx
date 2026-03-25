@@ -224,7 +224,7 @@ export default function Zimmer() {
                       ['Nächte', nights(booking.check_in, booking.check_out)],
                       ['Betrag Zimmer', `${parseFloat(booking.amount_due || 0).toFixed(2)}€`],
                       ['Quelle', booking.source || 'Direkt'],
-                      ['Meldeschein', booking.meldeschein_completed ? '✓ Ausgefüllt' : '⚠ Ausstehend'],
+                      ['Meldeschein', booking.meldeschein_completed ? (booking.meldeschein_vorab ? '✓ Vorab erhalten' : '✓ Ausgefüllt') : 'Ausstehend'],
                     ].map(([l, v], i) => (
                       <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '5px 0' }}>
                         <span style={{ fontSize: 11, color: 'var(--textMuted)' }}>{l}</span>

@@ -77,7 +77,7 @@ export default function Buchungen() {
     setConfirm({
       title: 'Gast einchecken',
       message: `${booking.guest_name} in Zimmer ${booking.room} einchecken?`,
-      warning: booking.meldeschein_completed ? null : '⚠️ Meldeschein wurde noch nicht ausgefüllt.',
+      warning: booking.meldeschein_completed ? null : '⚠️ Meldeschein wurde noch nicht ausgefüllt. Bitte auf der Meldeschein-Seite starten.',
       confirmLabel: 'Einchecken', confirmColor: '#10b981',
       onConfirm: async () => {
         await supabase.from('bookings').update({ status: 'checked_in' }).eq('id', booking.id)
@@ -360,8 +360,10 @@ export default function Buchungen() {
               {/* Meldeschein Status */}
               <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid var(--border)' }}>
                 <span style={{ fontSize: 12, color: 'var(--textMuted)' }}>Meldeschein</span>
-                <span style={{ fontSize: 12, color: selected.meldeschein_completed ? '#10b981' : '#f59e0b', fontWeight: 500 }}>
-                  {selected.meldeschein_completed ? '✓ Ausgefüllt' : '⚠ Ausstehend'}
+                <span style={{ fontSize: 12, fontWeight: 500, color: selected.meldeschein_completed ? '#10b981' : selected.meldeschein_active ? '#f59e0b' : 'var(--textDim)' }}>
+                  {selected.meldeschein_completed
+                    ? (selected.meldeschein_vorab ? '✓ Vorab erhalten' : '✓ Ausgefüllt')
+                    : selected.meldeschein_active ? 'Gast füllt aus...' : 'Ausstehend'}
                 </span>
               </div>
 
