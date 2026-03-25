@@ -4,6 +4,8 @@ import { supabase, subscribeToTable } from '../lib/supabase'
 import { SkeletonTable } from '../components/LoadingSkeleton'
 import { loadInvoiceData, openInvoicePDF } from '../lib/invoice'
 import { logAction } from '../lib/audit'
+import { exportCSV, todayStr as csvDate } from '../lib/export'
+import { openPrintPage, buildTable } from '../lib/print'
 import { prepareCheckoutItems, finalizeCheckout as doFinalizeCheckout } from '../lib/checkout'
 import ConfirmDialog from '../components/ConfirmDialog'
 
@@ -242,6 +244,13 @@ export default function Buchungen() {
           <p style={{ fontSize: 12, color: 'var(--textMuted)', marginTop: -12 }}>{bookings.length} Buchungen · {bookings.filter(b => b.status === 'checked_in').length} eingecheckt</p>
         </div>
         <div style={{ display: 'flex', gap: 6 }}>
+          <button onClick={() => exportCSV(`buchungen_${csvDate()}.csv`, ['Gast','Zimmer','Check-in','Check-out','Nächte','Betrag','Status','Zahlung'], filtered.map(b => [b.guest_name, b.room, b.check_in, b.check_out, nights(b.check_in, b.check_out), parseFloat(b.amount_due||0).toFixed(2), b.status, b.payment_method||'']))} style={{ padding: '8px 14px', borderRadius: 8, fontSize: 11, cursor: 'pointer', fontFamily: 'inherit', background: 'var(--bgCard)', border: '1px solid var(--borderLight)', color: 'var(--textMuted)' }}>CSV Export</button>
+          <button onClick={() => {
+            const today = new Date().toISOString().split('T')[0]
+            const arrivals = bookings.filter(b => b.check_in === today && b.status !== 'cancelled')
+            const departures = bookings.filter(b => b.check_out === today)
+            openPrintPage('Tägliche Ankunfts- & Abreiseliste', `<h3 style="margin-bottom:8px">Ankünfte heute (${arrivals.length})</h3>` + buildTable(['Gast','Zimmer','Nächte','Betrag','Meldeschein'], arrivals.map(b => [b.guest_name, b.room, nights(b.check_in, b.check_out), `${parseFloat(b.amount_due||0).toFixed(2)}€`, b.meldeschein_completed ? '✓' : '—'])) + `<h3 style="margin:16px 0 8px">Abreisen heute (${departures.length})</h3>` + buildTable(['Gast','Zimmer','Betrag','Status'], departures.map(b => [b.guest_name, b.room, `${parseFloat(b.amount_due||0).toFixed(2)}€`, b.status])))
+          }} style={{ padding: '8px 14px', borderRadius: 8, fontSize: 11, cursor: 'pointer', fontFamily: 'inherit', background: 'var(--bgCard)', border: '1px solid var(--borderLight)', color: 'var(--textMuted)' }}>Tagesliste drucken</button>
           <button onClick={() => { setShowNewBooking(true); setGuestSearch(''); setGuestDropdown(false) }} style={{ padding: '8px 16px', borderRadius: 8, fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600, background: '#10b981', color: '#fff', border: 'none' }}>+ Neue Buchung</button>
           {[['liste', 'Liste'], ['kalender', 'Kalender']].map(([k, l]) => (
             <button key={k} onClick={() => setView(k)} style={{

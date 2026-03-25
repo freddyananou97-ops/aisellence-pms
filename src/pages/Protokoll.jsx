@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { supabase, subscribeToTable } from '../lib/supabase'
+import { exportCSV, todayStr as csvDate } from '../lib/export'
 
 const ACTION_LABELS = {
   booking_created: 'Buchung erstellt', booking_updated: 'Buchung geändert', booking_cancelled: 'Buchung storniert',
@@ -48,6 +49,7 @@ export default function Protokoll() {
       <div style={{ marginBottom: 16 }}>
         <h1 style={{ fontSize: 22, fontWeight: 500, color: 'var(--text)', margin: '0 0 4px' }}>Protokoll</h1>
         <p style={{ fontSize: 12, color: 'var(--textMuted)' }}>Audit-Log aller Aktionen im PMS</p>
+        <button onClick={() => exportCSV(`protokoll_${csvDate()}.csv`, ['Zeitpunkt','Benutzer','Rolle','Aktion','Entity','Entity-ID','Details'], filtered.map(l => [l.timestamp ? new Date(l.timestamp).toLocaleString('de-DE') : '', l.user_name, l.user_role, ACTION_LABELS[l.action]||l.action, l.entity_type||'', l.entity_id||'', l.details ? JSON.stringify(l.details) : '']))} style={{ padding: '6px 14px', borderRadius: 8, fontSize: 10, cursor: 'pointer', fontFamily: 'inherit', background: 'var(--bgCard)', border: '1px solid var(--borderLight)', color: 'var(--textMuted)', marginTop: 8 }}>CSV Export</button>
       </div>
 
       {/* Filters */}

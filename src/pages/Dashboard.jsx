@@ -4,6 +4,7 @@ import { fetchBookings, fetchShiftLogs, fetchComplaints, fetchMaintenance, fetch
 import { useNotifications } from '../hooks/useNotifications'
 import { useTier } from '../lib/tier.jsx'
 import LoadingSkeleton from '../components/LoadingSkeleton'
+import { openPrintPage, buildTable } from '../lib/print'
 import ConfirmDialog from '../components/ConfirmDialog'
 
 export default function Dashboard({ user }) {
@@ -124,7 +125,13 @@ export default function Dashboard({ user }) {
     <div style={s.content} className="fade-in">
       <div style={s.header}>
         <div><h1 style={s.h1}>{tier === 'concierge' ? 'Marco Concierge' : 'Dashboard'}</h1><p style={s.date}><DashboardClock /></p></div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}><div style={s.liveDot} title="Realtime aktiv" /><div style={s.hotelBadge}>{user.hotel}</div></div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <button onClick={() => {
+            const ci = dCI, co = dCO
+            openPrintPage('Tagesreport', `<div class="summary"><div class="summary-row"><span>Belegung</span><span>${occ}% (${occupied}/${totalRooms})</span></div><div class="summary-row"><span>Ankünfte heute</span><span>${ci.length}</span></div><div class="summary-row"><span>Abreisen heute</span><span>${co.length}</span></div><div class="summary-row"><span>Umsatz heute</span><span>${todayRevenue.toLocaleString('de-DE')}€</span></div></div>` + (ci.length > 0 ? `<h3 style="margin-bottom:8px">Ankünfte</h3>` + buildTable(['Gast','Zimmer','Nächte','Betrag'], ci.map(b => [b.guest_name, b.room, Math.max(1,Math.round((new Date(b.check_out)-new Date(b.check_in))/86400000)), `${parseFloat(b.amount_due||0).toFixed(0)}€`])) : '') + (co.length > 0 ? `<h3 style="margin:12px 0 8px">Abreisen</h3>` + buildTable(['Gast','Zimmer','Betrag'], co.map(b => [b.guest_name, b.room, `${parseFloat(b.amount_due||0).toFixed(0)}€`])) : ''))
+          }} style={{ padding: '7px 14px', borderRadius: 10, fontSize: 11, cursor: 'pointer', fontFamily: 'inherit', background: 'var(--bgCard)', border: '1px solid var(--borderLight)', color: 'var(--textMuted)' }}>Tagesreport</button>
+          <div style={s.liveDot} title="Realtime aktiv" /><div style={s.hotelBadge}>{user.hotel}</div>
+        </div>
       </div>
 
       {/* KPIs - PMS only */}

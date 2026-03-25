@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { supabase, subscribeToTable } from '../lib/supabase'
 import useModalClose from '../hooks/useModalClose'
+import { exportCSV, todayStr as csvDate } from '../lib/export'
 import { loadInvoiceData, openInvoicePDF } from '../lib/invoice'
 
 export default function Rechnungen() {
@@ -90,6 +91,7 @@ export default function Rechnungen() {
 
       {/* Search + Date Filter */}
       <div style={{ display: 'flex', gap: 8, marginBottom: 10, flexWrap: 'wrap' }}>
+        <button onClick={() => exportCSV(`rechnungen_${csvDate()}.csv`, ['Rechnung','Datum','Gast','Zimmer','Nächte','Betrag','Zahlung'], filtered.map(b => [`RE-${new Date(b.check_out).getFullYear()}-${String(b.booking_id||b.id).slice(-4).toUpperCase()}`, b.check_out, b.guest_name, b.room, nights(b.check_in, b.check_out), parseFloat(b.amount_due||0).toFixed(2), b.payment_method||'']))} style={{ padding: '8px 14px', borderRadius: 8, fontSize: 11, cursor: 'pointer', fontFamily: 'inherit', background: 'var(--bgCard)', border: '1px solid var(--borderLight)', color: 'var(--textMuted)', whiteSpace: 'nowrap' }}>CSV Export</button>
         <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Gast, Zimmer oder Buchungs-ID..."
           style={{ flex: 1, minWidth: 200, padding: '10px 14px', background: 'var(--bgCard)', border: '1px solid var(--borderLight)', borderRadius: 8, fontSize: 13, color: 'var(--text)', outline: 'none', fontFamily: 'inherit' }} />
         {[['alle', 'Alle'], ['heute', 'Heute'], ['woche', 'Woche'], ['monat', 'Monat'], ['custom', 'Zeitraum']].map(([k, l]) => (

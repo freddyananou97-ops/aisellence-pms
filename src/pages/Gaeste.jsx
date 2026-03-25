@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { supabase, subscribeToTable } from '../lib/supabase'
 import useModalClose from '../hooks/useModalClose'
+import { exportCSV, todayStr as csvDate } from '../lib/export'
 
 const LANG_FLAGS = { german: '🇩🇪', english: '🇬🇧', french: '🇫🇷', italian: '🇮🇹', spanish: '🇪🇸', turkish: '🇹🇷', arabic: '🇸🇦', russian: '🇷🇺', chinese: '🇨🇳', japanese: '🇯🇵' }
 
@@ -85,6 +86,7 @@ export default function Gaeste() {
           <h1 style={s.h1}>Gästedatenbank</h1>
           <p style={{ fontSize: 12, color: 'var(--textMuted)', marginTop: -12 }}>{guests.length} Gäste · {vipCount} VIP</p>
         </div>
+        <button onClick={() => exportCSV(`gaeste_${csvDate()}.csv`, ['Vorname','Nachname','Email','Telefon','Adresse','Sprache','Aufenthalte','VIP'], filtered.map(g => [g.first_name, g.last_name, g.email||'', g.phone||'', g.address||'', g.language||'', g.total_stays||0, g.vip ? 'Ja' : '']))} style={{ padding: '8px 14px', borderRadius: 8, fontSize: 11, cursor: 'pointer', fontFamily: 'inherit', background: 'var(--bgCard)', border: '1px solid var(--borderLight)', color: 'var(--textMuted)' }}>CSV Export</button>
       </div>
 
       {/* Search + Filters */}

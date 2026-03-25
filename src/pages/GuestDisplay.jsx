@@ -567,12 +567,76 @@ function InvoiceView({ session, onComplete, lang: initialLang }) {
 // ============================================================
 // MAIN GUEST DISPLAY
 // ============================================================
+// ============================================================
+// FEEDBACK SCREEN (after checkout)
+// ============================================================
+function FeedbackScreen({ session, lang, onDone }) {
+  const t = T[lang]
+  const [rating, setRating] = useState(0)
+  const [comment, setComment] = useState('')
+  const [submitting, setSubmitting] = useState(false)
+
+  const handleSubmit = async () => {
+    if (rating === 0) { onDone(); return }
+    setSubmitting(true)
+    try {
+      await supabase.from('guest_feedback').insert({
+        booking_id: session.booking_id || null,
+        guest_name: session.guest_name,
+        room: session.room,
+        rating, comment: comment || null,
+      })
+    } catch (e) { console.error('Feedback error:', e) }
+    setSubmitting(false)
+    onDone()
+  }
+
+  const feedbackT = {
+    de: { title: 'Wie war Ihr Aufenthalt?', placeholder: 'Möchten Sie uns etwas mitteilen?', submit: 'Absenden', skip: 'Überspringen' },
+    en: { title: 'How was your stay?', placeholder: 'Would you like to leave a comment?', submit: 'Submit', skip: 'Skip' },
+  }
+  const ft = feedbackT[lang] || feedbackT.de
+
+  return (
+    <div style={{ minHeight: '100vh', background: '#f8f9fa', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 32 }}>
+      <div style={{ maxWidth: 440, width: '100%', textAlign: 'center' }}>
+        <h1 style={{ fontSize: 26, fontWeight: 300, color: '#1a1a1a', margin: '0 0 24px' }}>{ft.title}</h1>
+
+        {/* Stars */}
+        <div style={{ display: 'flex', justifyContent: 'center', gap: 12, marginBottom: 32 }}>
+          {[1,2,3,4,5].map(star => (
+            <button key={star} onClick={() => setRating(star)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, transition: 'transform 0.15s', transform: rating >= star ? 'scale(1.1)' : 'scale(1)' }}>
+              <svg width={48} height={48} viewBox="0 0 24 24" fill={rating >= star ? '#f59e0b' : 'none'} stroke={rating >= star ? '#f59e0b' : '#d1d5db'} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+              </svg>
+            </button>
+          ))}
+        </div>
+
+        {rating > 0 && (
+          <textarea value={comment} onChange={e => setComment(e.target.value)} placeholder={ft.placeholder}
+            style={{ width: '100%', minHeight: 100, padding: '14px 16px', border: '1px solid #d1d5db', borderRadius: 12, fontSize: 15, color: '#1a1a1a', background: '#fff', outline: 'none', boxSizing: 'border-box', fontFamily: 'inherit', resize: 'vertical', marginBottom: 24 }} />
+        )}
+
+        <div style={{ display: 'flex', gap: 12, justifyContent: 'center' }}>
+          <button onClick={onDone} style={{ padding: '14px 28px', background: '#fff', border: '1px solid #d1d5db', borderRadius: 12, fontSize: 15, color: '#6b7280', cursor: 'pointer', fontFamily: 'inherit' }}>{ft.skip}</button>
+          {rating > 0 && (
+            <button disabled={submitting} onClick={handleSubmit} style={{ padding: '14px 28px', background: '#1a1a1a', border: 'none', borderRadius: 12, fontSize: 15, fontWeight: 600, color: '#fff', cursor: 'pointer', fontFamily: 'inherit', opacity: submitting ? 0.6 : 1 }}>{submitting ? '...' : ft.submit}</button>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function GuestDisplay() {
   const [session, setSession] = useState(null)
   const [showComplete, setShowComplete] = useState(false)
   const [preCheckinBooking, setPreCheckinBooking] = useState(null)
   const [preCheckinLoading, setPreCheckinLoading] = useState(false)
   const [preCheckinError, setPreCheckinError] = useState(false)
+  const [showFeedback, setShowFeedback] = useState(false)
+  const [feedbackSession, setFeedbackSession] = useState(null)
   const [lang] = useState('de')
 
   useEffect(() => {
@@ -625,9 +689,21 @@ export default function GuestDisplay() {
   }, [])
 
   const handleComplete = useCallback(() => {
+    // For invoice/checkout: show feedback first
+    if (session?.type === 'invoice') {
+      setFeedbackSession(session)
+      setShowFeedback(true)
+      return
+    }
     setShowComplete(true)
     setTimeout(() => { setSession(null); setPreCheckinBooking(null); setShowComplete(false) }, 3000)
-  }, [])
+  }, [session])
+
+  const handleFeedbackDone = () => {
+    setShowFeedback(false); setFeedbackSession(null)
+    setShowComplete(true)
+    setTimeout(() => { setSession(null); setShowComplete(false) }, 3000)
+  }
 
   const t = T[lang]
 
@@ -642,6 +718,8 @@ export default function GuestDisplay() {
       <p style={{ fontSize: 15, color: '#6b7280', textAlign: 'center', maxWidth: 400 }}>{t.bookingNotFoundMsg}</p>
     </div>
   )
+
+  if (showFeedback && feedbackSession) return <FeedbackScreen session={feedbackSession} lang={lang} onDone={handleFeedbackDone} />
 
   if (showComplete) return (
     <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: '#f8f9fa' }}>
