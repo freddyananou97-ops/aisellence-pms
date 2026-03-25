@@ -237,11 +237,18 @@ export default function Meldeschein() {
             <p style={{ fontSize: 12, color: 'var(--textMuted)', margin: '0 0 16px' }}>Der Meldeschein wird auf dem Gast-Display angezeigt.</p>
 
             {/* Quick select from bookings */}
-            {bookings.filter(b => (b.status === 'reserved' || b.status === 'confirmed') && !b.meldeschein_completed).length > 0 && (
+            {(() => {
+              const today = new Date().toISOString().split('T')[0]
+              const tmrw = new Date(Date.now() + 86400000).toISOString().split('T')[0]
+              const formBookingIds = new Set(forms.filter(f => f.status === 'completed').map(f => f.booking_id).filter(Boolean))
+              const eligible = bookings
+                .filter(b => (b.status === 'reserved' || b.status === 'confirmed') && (b.check_in === today || b.check_in === tmrw) && !b.meldeschein_completed && (!b.booking_id || !formBookingIds.has(b.booking_id)))
+                .sort((a, b) => a.check_in === today && b.check_in !== today ? -1 : a.check_in !== today && b.check_in === today ? 1 : 0)
+              return eligible.length > 0 ? (
               <div style={{ marginBottom: 16 }}>
-                <label style={s.label}>Schnellauswahl (reserviert, ohne Meldeschein)</label>
+                <label style={s.label}>Anreise heute / morgen — ohne Meldeschein</label>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                  {bookings.filter(b => (b.status === 'reserved' || b.status === 'confirmed') && !b.meldeschein_completed).slice(0, 8).map(b => (
+                  {eligible.slice(0, 8).map(b => (
                     <button key={b.id} onClick={() => setNewCheckin({ room: b.room, guest_name: b.guest_name, booking_id: b.booking_id || '' })} style={{
                       padding: '8px 12px', borderRadius: 8, fontSize: 11, cursor: 'pointer', fontFamily: 'inherit',
                       background: newCheckin.room === b.room ? 'rgba(59,130,246,0.1)' : 'var(--bgCard)',
@@ -254,7 +261,8 @@ export default function Meldeschein() {
                   ))}
                 </div>
               </div>
-            )}
+              ) : null
+            })()}
 
             <label style={s.label}>Zimmernummer</label>
             <input style={s.input} placeholder="z.B. 201" value={newCheckin.room} onChange={e => setNewCheckin(p => ({ ...p, room: e.target.value }))} />

@@ -35,20 +35,25 @@ export default function Buchungen() {
   const [guests, setGuests] = useState([])
   const [guestSearch, setGuestSearch] = useState('')
   const [guestDropdown, setGuestDropdown] = useState(false)
+  const [regForms, setRegForms] = useState([])
 
   const todayStr = new Date().toISOString().split('T')[0]
 
   const load = useCallback(async () => {
-    const [b, r, g] = await Promise.all([
+    const [b, r, g, rf] = await Promise.all([
       supabase.from('bookings').select('*').order('check_in', { ascending: true }),
       supabase.from('rooms').select('*').order('room_number', { ascending: true }),
       supabase.from('guests').select('*').order('last_name', { ascending: true }),
+      supabase.from('registration_forms').select('booking_id,status').not('booking_id', 'is', null),
     ])
     setBookings(b.data || [])
     setRooms(r.data || [])
     setGuests(g.data || [])
+    setRegForms(rf.data || [])
     setLoading(false)
   }, [])
+
+  const hasMeldeschein = (bookingId) => bookingId && regForms.some(f => f.booking_id === bookingId && f.status === 'completed')
 
   useEffect(() => {
     load()
@@ -74,16 +79,37 @@ export default function Buchungen() {
 
   // Status actions
   const doCheckIn = (booking) => {
+    const hasForm = hasMeldeschein(booking.booking_id) || booking.meldeschein_completed
+    if (!hasForm) {
+      setConfirm({
+        title: 'Meldeschein erforderlich',
+        message: `Für ${booking.guest_name} (Zimmer ${booking.room}) liegt noch kein ausgefüllter Meldeschein vor.\n\nGemäß §30 BMG muss der Meldeschein vor dem Check-in ausgefüllt sein.`,
+        warning: 'Bitte über die Meldeschein-Seite starten oder den Gast-Display verwenden.',
+        confirmLabel: 'Verstanden', confirmColor: '#3b82f6',
+        onConfirm: () => setConfirm(null),
+      })
+      return
+    }
     setConfirm({
       title: 'Gast einchecken',
       message: `${booking.guest_name} in Zimmer ${booking.room} einchecken?`,
-      warning: booking.meldeschein_completed ? null : '⚠️ Meldeschein wurde noch nicht ausgefüllt. Bitte auf der Meldeschein-Seite starten.',
+      warning: null,
       confirmLabel: 'Einchecken', confirmColor: '#10b981',
       onConfirm: async () => {
         await supabase.from('bookings').update({ status: 'checked_in' }).eq('id', booking.id)
         setConfirm(null); setSelected(null); load()
       },
     })
+  }
+
+  const startMeldescheinForBooking = async (booking) => {
+    const expiresAt = new Date(Date.now() + 30 * 60 * 1000).toISOString()
+    await supabase.from('guest_display_sessions').insert({
+      type: 'checkin', status: 'active', room: booking.room,
+      guest_name: booking.guest_name, booking_id: booking.booking_id || null,
+      data: {}, created_at: new Date().toISOString(), expires_at: expiresAt,
+    })
+    setConfirm({ title: 'Meldeschein gesendet', message: `Der Meldeschein für ${booking.guest_name} wurde an das Gast-Display gesendet.`, confirmLabel: 'OK', confirmColor: '#10b981', onConfirm: () => setConfirm(null) })
   }
 
   const doCheckOut = async (booking) => {
@@ -236,8 +262,15 @@ export default function Buchungen() {
                 background: selected?.id === b.id ? 'var(--active)' : b.check_in === todayStr ? 'rgba(59,130,246,0.03)' : 'transparent',
               }}>
                 <div>
-                  <span style={{ fontSize: 13, color: 'var(--text)', fontWeight: 500 }}>{b.guest_name}</span>
-                  {b.source && <span style={{ fontSize: 9, color: 'var(--textDim)', marginLeft: 6 }}>{b.source}</span>}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span style={{ fontSize: 13, color: 'var(--text)', fontWeight: 500 }}>{b.guest_name}</span>
+                    {b.source && <span style={{ fontSize: 9, color: 'var(--textDim)' }}>{b.source}</span>}
+                  </div>
+                  {(b.status === 'reserved' || b.status === 'confirmed') && (
+                    (hasMeldeschein(b.booking_id) || b.meldeschein_completed)
+                      ? <span style={{ fontSize: 9, color: '#10b981', fontWeight: 500 }}>Meldeschein ✓</span>
+                      : <span style={{ fontSize: 9, color: 'var(--textDim)' }}>Meldeschein fehlt</span>
+                  )}
                 </div>
                 <span style={{ fontSize: 12, color: 'var(--textSec)' }}>{b.room}</span>
                 <span style={{ fontSize: 12, color: b.check_in === todayStr ? '#3b82f6' : 'var(--textSec)' }}>{b.check_in}</span>
@@ -411,11 +444,20 @@ export default function Buchungen() {
 
               {/* Action Buttons */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                {(selected.status === 'reserved' || selected.status === 'confirmed') && (
-                  <button onClick={() => doCheckIn(selected)} style={{ ...s.actionBtn, background: '#10b981', color: '#fff', border: 'none' }}>
-                    Gast einchecken
-                  </button>
-                )}
+                {(selected.status === 'reserved' || selected.status === 'confirmed') && (() => {
+                  const hasForm = hasMeldeschein(selected.booking_id) || selected.meldeschein_completed
+                  return <>
+                    <button onClick={() => doCheckIn(selected)} style={{ ...s.actionBtn, background: hasForm ? '#10b981' : '#555', color: '#fff', border: 'none', opacity: hasForm ? 1 : 0.6 }}
+                      title={hasForm ? '' : 'Meldeschein erforderlich — §30 BMG'}>
+                      {hasForm ? 'Gast einchecken' : 'Einchecken (Meldeschein fehlt)'}
+                    </button>
+                    {!hasForm && (
+                      <button onClick={() => startMeldescheinForBooking(selected)} style={{ ...s.actionBtn, background: 'rgba(59,130,246,0.08)', color: '#3b82f6', border: '1px solid rgba(59,130,246,0.2)' }}>
+                        Meldeschein jetzt starten
+                      </button>
+                    )}
+                  </>
+                })()}
                 {selected.status === 'checked_in' && (
                   <button onClick={() => doCheckOut(selected)} style={{ ...s.actionBtn, background: '#f59e0b', color: '#000', border: 'none' }}>
                     Auschecken & Rechnung prüfen
