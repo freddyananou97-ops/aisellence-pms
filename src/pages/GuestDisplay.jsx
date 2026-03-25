@@ -367,7 +367,7 @@ function InvoiceView({ session, onComplete, lang: initialLang }) {
 
   // Listen for PMS actions via Realtime (payment_pending with stripe_url, or paid)
   useEffect(() => {
-    if (step !== 'waiting' && step !== 'stripe') return
+    if (step !== 'waiting' && step !== 'stripe' && step !== 'invoice') return
     const channel = supabase.channel(`invoice-${session.id}`)
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'guest_display_sessions', filter: `id=eq.${session.id}` }, (payload) => {
         const s = payload.new
@@ -377,6 +377,10 @@ function InvoiceView({ session, onComplete, lang: initialLang }) {
           setStep('stripe')
         }
         if (s.status === 'paid') onComplete()
+        if (s.status === 'waiting' || s.status === 'cancelled') {
+          // PMS cancelled the session — reset to welcome
+          setStep('cancelled')
+        }
       }).subscribe()
     return () => supabase.removeChannel(channel)
   }, [step, session.id, onComplete])
@@ -509,6 +513,18 @@ function InvoiceView({ session, onComplete, lang: initialLang }) {
             <a href={stripeUrl} target="_blank" rel="noopener noreferrer" style={{ display: 'inline-block', padding: '14px 32px', background: '#635bff', color: '#fff', borderRadius: 12, fontSize: 15, fontWeight: 600, textDecoration: 'none' }}>{t.payNow}</a>
           </div>
           <p style={{ fontSize: 12, color: '#9ca3af', marginTop: 12 }}>{t.scanQR}</p>
+        </div>
+      </div>
+    )
+  }
+
+  // Cancelled by PMS — auto-return to welcome after 3s
+  if (step === 'cancelled') {
+    setTimeout(() => onComplete(), 3000)
+    return (
+      <div style={{ minHeight: '100vh', background: '#f8f9fa', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 32 }}>
+        <div style={{ textAlign: 'center' }}>
+          <p style={{ fontSize: 16, color: '#6b7280' }}>{lang === 'de' ? 'Der Vorgang wurde abgebrochen.' : 'The process has been cancelled.'}</p>
         </div>
       </div>
     )
