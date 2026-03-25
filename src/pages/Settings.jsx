@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
+import { hashPin } from '../lib/auth'
 import { useTheme } from '../lib/theme.jsx'
 import { ROLES } from '../lib/roles'
 import { HOTEL, saveHotelSetting, loadHotelSettings } from '../lib/hotel'
@@ -32,7 +33,12 @@ export default function Settings() {
 
   const addEmployee = async () => {
     if (!newEmp.name || !newEmp.pin) return
-    await supabase.from('employees').insert({ name: newEmp.name, pin: newEmp.pin, role: newEmp.role, active: true })
+    // Insert with temp pin, then hash with the generated id
+    const { data: inserted } = await supabase.from('employees').insert({ name: newEmp.name, pin: '___temp___', role: newEmp.role, active: true }).select().single()
+    if (inserted) {
+      const hashed = await hashPin(newEmp.pin, inserted.id)
+      await supabase.from('employees').update({ pin: hashed }).eq('id', inserted.id)
+    }
     setNewEmp({ name: '', pin: '', role: 'housekeeping' }); setShowAdd(false); loadEmployees()
   }
 

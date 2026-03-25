@@ -4,6 +4,7 @@ import { TierProvider, useTier } from './lib/tier'
 import { getAllowedModules, getDefaultRoute } from './lib/roles'
 
 import { loadHotelSettings } from './lib/hotel'
+import { setAuditUser, logAction } from './lib/audit'
 import ErrorBoundary from './components/ErrorBoundary'
 import Sidebar from './components/Sidebar'
 const Login = lazy(() => import('./pages/Login'))
@@ -25,6 +26,7 @@ import Feedback from './pages/Feedback'
 import Fruehstueck from './pages/Fruehstueck'
 import Settings from './pages/Settings'
 import Meldeschein from './pages/Meldeschein'
+import Protokoll from './pages/Protokoll'
 
 const SESSION_KEY = 'aisellence-session'
 const SESSION_MAX_AGE = 12 * 60 * 60 * 1000 // 12 hours
@@ -60,11 +62,13 @@ function AppContent() {
   useEffect(() => {
     loadHotelSettings()
     if (user?.tier) setTier(user.tier)
-    if (user) { setShowLogin(false); setDashboardReady(true) }
+    if (user) { setAuditUser(user); setShowLogin(false); setDashboardReady(true) }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleLogin = (u) => {
     saveSession(u)
+    setAuditUser(u)
+    logAction('login', 'employee', u.id || u.name, { name: u.name, role: u.role })
     setTransitioning(true)
     setUser(u)
     setTier(u.tier || 'pms')
@@ -111,6 +115,7 @@ function AppContent() {
       case '/fruehstueck': return <Fruehstueck />
       case '/settings': return <Settings />
       case '/meldeschein': return <Meldeschein />
+      case '/protokoll': return <Protokoll />
       default: return <Dashboard user={user} />
     }
   }

@@ -3,6 +3,7 @@ import useModalClose from '../hooks/useModalClose'
 import { supabase, subscribeToTable } from '../lib/supabase'
 import { SkeletonTable } from '../components/LoadingSkeleton'
 import { loadInvoiceData, openInvoicePDF } from '../lib/invoice'
+import { logAction } from '../lib/audit'
 import { prepareCheckoutItems, finalizeCheckout as doFinalizeCheckout } from '../lib/checkout'
 import ConfirmDialog from '../components/ConfirmDialog'
 
@@ -105,6 +106,7 @@ export default function Buchungen() {
       confirmLabel: 'Einchecken', confirmColor: '#10b981',
       onConfirm: async () => {
         await supabase.from('bookings').update({ status: 'checked_in' }).eq('id', booking.id)
+        logAction('checkin', 'booking', booking.booking_id, { guest: booking.guest_name, room: booking.room })
         setConfirm(null); setSelected(null); load()
       },
     })
@@ -153,6 +155,7 @@ export default function Buchungen() {
       confirmLabel: 'Stornieren', confirmColor: '#ef4444',
       onConfirm: async () => {
         await supabase.from('bookings').update({ status: 'cancelled' }).eq('id', booking.id)
+        logAction('booking_cancelled', 'booking', booking.booking_id, { guest: booking.guest_name, room: booking.room })
         setConfirm(null); setSelected(null); load()
       },
     })
@@ -190,6 +193,7 @@ export default function Buchungen() {
       const nightCount = bookingData.check_in && bookingData.check_out ? Math.max(1, Math.ceil((new Date(bookingData.check_out) - new Date(bookingData.check_in)) / 86400000)) : 1
       const { error: bookErr } = await supabase.from('bookings').insert({ ...bookingData, booking_id: id, breakfast_persons: bookingData.breakfast_included ? breakfast_persons : null })
       if (bookErr) throw new Error(bookErr.message)
+      logAction('booking_created', 'booking', id, { guest: bookingData.guest_name, room: bookingData.room, check_in: bookingData.check_in, check_out: bookingData.check_out })
       if (bookingData.breakfast_included) {
         const totalBreakfast = 18 * breakfast_persons * nightCount
         await supabase.from('service_requests').insert({

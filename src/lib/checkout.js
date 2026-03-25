@@ -1,5 +1,6 @@
 import { supabase } from './supabase'
 import { loadInvoiceData, openInvoicePDF } from './invoice'
+import { logAction } from './audit'
 
 /**
  * Prepare checkout items from a booking.
@@ -29,6 +30,7 @@ export async function finalizeCheckout(booking, items, paymentMethod) {
     checked_out_at: new Date().toISOString(),
   }).eq('id', booking.id)
   if (error) throw new Error(`Checkout fehlgeschlagen: ${error.message}`)
+  logAction('checkout', 'booking', booking.booking_id, { guest: booking.guest_name, room: booking.room, payment: pmLabel, total: items.reduce((s, i) => s + i.amount, 0) })
   const invoiceCharges = items.filter(i => i.id !== 'room').map(i => ({ type: i.type, details: i.details, amount: i.amount, date: new Date().toISOString() }))
   openInvoicePDF({ ...booking, amount_due: items.find(i => i.id === 'room')?.amount || 0 }, invoiceCharges)
 }

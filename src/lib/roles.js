@@ -1,17 +1,17 @@
 export const ROLES = {
   admin: {
     label: 'Administrator',
-    modules: ['/', '/buchungen', '/kalender', '/gaeste', '/rechnungen', '/analytics', '/schichtbuch', '/zimmer', '/housekeeping', '/kitchen', '/restaurant', '/fruehstueck', '/spa', '/wartung', '/meldeschein', '/feedback', '/settings'],
+    modules: ['/', '/buchungen', '/kalender', '/gaeste', '/rechnungen', '/analytics', '/schichtbuch', '/zimmer', '/housekeeping', '/kitchen', '/restaurant', '/fruehstueck', '/spa', '/wartung', '/meldeschein', '/feedback', '/protokoll', '/settings'],
     defaultRoute: '/',
   },
   rezeption: {
     label: 'Rezeption',
-    modules: ['/', '/buchungen', '/kalender', '/gaeste', '/rechnungen', '/analytics', '/schichtbuch', '/zimmer', '/housekeeping', '/kitchen', '/restaurant', '/fruehstueck', '/spa', '/wartung', '/meldeschein', '/feedback', '/settings'],
+    modules: ['/', '/buchungen', '/kalender', '/gaeste', '/zimmer', '/housekeeping', '/kitchen', '/restaurant', '/fruehstueck', '/spa', '/wartung', '/meldeschein', '/schichtbuch', '/feedback'],
     defaultRoute: '/',
   },
   housekeeping: {
     label: 'Housekeeping',
-    modules: ['/housekeeping'],
+    modules: ['/housekeeping', '/wartung'],
     defaultRoute: '/housekeeping',
   },
   maintenance: {
@@ -36,7 +36,7 @@ export const ROLES = {
   },
   nachtschicht: {
     label: 'Nachtschicht',
-    modules: ['/', '/buchungen', '/schichtbuch', '/zimmer', '/housekeeping'],
+    modules: ['/', '/buchungen', '/schichtbuch', '/zimmer', '/housekeeping', '/meldeschein'],
     defaultRoute: '/',
   },
 }

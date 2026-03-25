@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import * as THREE from 'three'
 import Logo from '../components/Logo'
-import { loginEmployee } from '../lib/supabase'
+import { loginWithHash } from '../lib/auth'
 import { HOTEL } from '../lib/hotel'
 
 function getLoginMode() {
@@ -129,7 +129,7 @@ export default function Login({ onLogin, transitioning }) {
   const handleLogin = async () => {
     if (!name || !pin) { setError('Name und PIN eingeben'); return }
     setLoading(true); setError('')
-    const employee = await loginEmployee(name, pin)
+    const employee = await loginWithHash(name, pin)
     if (employee) {
       onLogin({ ...employee, hotel: HOTEL.name, tier })
     } else {
