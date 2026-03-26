@@ -90,6 +90,12 @@ export default function Dashboard({ user }) {
   // Booking detail popup
   const [bookingDetail, setBookingDetail] = useState(null)
   const [showNewRequest, setShowNewRequest] = useState(false)
+
+  // Lock body scroll when modal is open
+  useEffect(() => {
+    if (showNewRequest) { document.body.style.overflow = 'hidden' } else { document.body.style.overflow = '' }
+    return () => { document.body.style.overflow = '' }
+  }, [showNewRequest])
   const [newReq, setNewReq] = useState({ category: 'room_service', room: '', guest_name: '', request_details: '', order_total: '', booking_id: '' })
   const [guestSearch, setGuestSearch] = useState('')
   const [orderItems, setOrderItems] = useState([]) // [{name, price, qty, note}]
@@ -503,7 +509,7 @@ export default function Dashboard({ user }) {
         const selColor = REQ_CATS.find(([k]) => k === newReq.category)?.[2] || '#3b82f6'
         return (
           <div style={{ position: 'fixed', inset: 0, background: 'var(--overlayBg, rgba(0,0,0,0.7))', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100 }} onClick={() => setShowNewRequest(false)}>
-            <div style={{ background: 'var(--modalBg, #111)', border: '1px solid var(--modalBorder, #222)', borderRadius: 16, padding: '24px 28px', width: '100%', maxWidth: newReq.category === 'room_service' ? 720 : 460, transition: 'max-width 0.3s ease' }} onClick={e => e.stopPropagation()}>
+            <div style={{ background: 'var(--modalBg, #111)', border: '1px solid var(--modalBorder, #222)', borderRadius: 16, padding: '24px 28px', width: '100%', maxWidth: newReq.category === 'room_service' ? 720 : 460, transition: 'max-width 0.3s ease', maxHeight: '90vh', overflow: 'hidden', display: 'flex', flexDirection: 'column' }} onClick={e => e.stopPropagation()}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
                 <h3 style={{ fontSize: 16, fontWeight: 500, color: 'var(--text)', margin: 0 }}>Neue Anfrage erfassen</h3>
                 <button onClick={() => setShowNewRequest(false)} style={{ background: 'var(--bgCard)', border: 'none', borderRadius: 6, width: 28, height: 28, fontSize: 14, cursor: 'pointer', color: 'var(--textMuted)' }}>✕</button>
@@ -588,7 +594,7 @@ export default function Dashboard({ user }) {
                   <div style={{ width: 240, flexShrink: 0 }}>
                     <div style={{ fontSize: 10, fontWeight: 500, color: 'var(--textMuted)', marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.5 }}>Speisekarte</div>
                     <input value={menuSearch} onChange={e => setMenuSearch(e.target.value)} placeholder="Suchen..." style={{ width: '100%', padding: '6px 10px', background: 'var(--inputBg)', border: '1px solid var(--borderLight)', borderRadius: 6, fontSize: 11, color: 'var(--text)', outline: 'none', boxSizing: 'border-box', marginBottom: 6, fontFamily: 'inherit' }} />
-                    <div style={{ maxHeight: 280, overflowY: 'auto', background: 'var(--bgCard)', border: '1px solid var(--borderLight)', borderRadius: 8, overflow: 'hidden' }}>
+                    <div style={{ maxHeight: 400, overflowY: 'auto', overscrollBehavior: 'contain', background: 'var(--bgCard)', border: '1px solid var(--borderLight)', borderRadius: 8 }}>
                       {Object.entries(MENU).map(([cat, items]) => {
                         const mq = menuSearch.toLowerCase()
                         const filtered = mq ? items.filter(([n]) => n.toLowerCase().includes(mq)) : items
