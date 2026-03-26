@@ -95,7 +95,8 @@ export default function Dashboard({ user }) {
   // Booking detail popup
   const [bookingDetail, setBookingDetail] = useState(null)
   const [showNewRequest, setShowNewRequest] = useState(false)
-  const [newReq, setNewReq] = useState({ category: 'towels', room: '', guest_name: '', request_details: '' })
+  const [newReq, setNewReq] = useState({ category: 'room_service', room: '', guest_name: '', request_details: '', order_total: '' })
+  const [guestSearch, setGuestSearch] = useState('')
 
   const handleTaxiConfirm = (req) => {
     const mins = taxiMinutes[req.id] || ''
@@ -391,45 +392,90 @@ export default function Dashboard({ user }) {
 
       <RealtimeBar />
       {/* New Request Modal */}
-      {showNewRequest && (
-        <div style={{ position: 'fixed', inset: 0, background: 'var(--overlayBg, rgba(0,0,0,0.7))', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100 }} onClick={() => setShowNewRequest(false)}>
-          <div style={{ background: 'var(--modalBg, #111)', border: '1px solid var(--modalBorder, #222)', borderRadius: 16, padding: '24px 28px', width: '100%', maxWidth: 420 }} onClick={e => e.stopPropagation()}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-              <h3 style={{ fontSize: 16, fontWeight: 500, color: 'var(--text)', margin: 0 }}>Neue Anfrage erfassen</h3>
-              <button onClick={() => setShowNewRequest(false)} style={{ background: 'var(--bgCard)', border: 'none', borderRadius: 6, width: 28, height: 28, fontSize: 14, cursor: 'pointer', color: 'var(--textMuted)' }}>✕</button>
-            </div>
+      {showNewRequest && (() => {
+        const REQ_CATS = [
+          ['room_service', 'Room Service', '#f59e0b'],
+          ['housekeeping', 'Housekeeping', '#3b82f6'],
+          ['maintenance', 'Wartung', '#ef4444'],
+          ['taxi', 'Taxi', '#eab308'],
+          ['complaint', 'Beschwerde', '#991b1b'],
+          ['late_checkout', 'Late Checkout', '#8b5cf6'],
+          ['luggage', 'Gepäck', '#14b8a6'],
+        ]
+        const checkedIn = bookings.filter(b => b.status === 'checked_in')
+        const q = guestSearch.toLowerCase()
+        const guestMatches = q ? checkedIn.filter(b => b.guest_name?.toLowerCase().includes(q) || String(b.room).includes(q)) : checkedIn
+        const selColor = REQ_CATS.find(([k]) => k === newReq.category)?.[2] || '#3b82f6'
+        return (
+          <div style={{ position: 'fixed', inset: 0, background: 'var(--overlayBg, rgba(0,0,0,0.7))', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100 }} onClick={() => setShowNewRequest(false)}>
+            <div style={{ background: 'var(--modalBg, #111)', border: '1px solid var(--modalBorder, #222)', borderRadius: 16, padding: '24px 28px', width: '100%', maxWidth: 460 }} onClick={e => e.stopPropagation()}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                <h3 style={{ fontSize: 16, fontWeight: 500, color: 'var(--text)', margin: 0 }}>Neue Anfrage erfassen</h3>
+                <button onClick={() => setShowNewRequest(false)} style={{ background: 'var(--bgCard)', border: 'none', borderRadius: 6, width: 28, height: 28, fontSize: 14, cursor: 'pointer', color: 'var(--textMuted)' }}>✕</button>
+              </div>
 
-            <label style={{ display: 'block', fontSize: 10, fontWeight: 500, color: 'var(--textMuted)', marginBottom: 4, textTransform: 'uppercase' }}>Kategorie</label>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 12 }}>
-              {[['towels','Handtücher'],['pillow','Kissen'],['cleaning','Reinigung'],['room_service','Room Service'],['taxi','Taxi'],['complaint','Beschwerde'],['toiletries','Pflegeprodukte'],['other','Sonstiges']].map(([k,l]) => (
-                <button key={k} onClick={() => setNewReq(p => ({ ...p, category: k }))} style={{
-                  padding: '6px 10px', borderRadius: 6, fontSize: 10, cursor: 'pointer', fontFamily: 'inherit',
-                  background: newReq.category === k ? 'rgba(59,130,246,0.1)' : 'var(--bgCard)',
-                  color: newReq.category === k ? '#3b82f6' : 'var(--textMuted)',
-                  border: `1px solid ${newReq.category === k ? '#3b82f6' : 'var(--borderLight)'}`,
-                }}>{l}</button>
-              ))}
-            </div>
+              <label style={{ display: 'block', fontSize: 10, fontWeight: 500, color: 'var(--textMuted)', marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.5 }}>Kategorie</label>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 14 }}>
+                {REQ_CATS.map(([k, l, c]) => (
+                  <button key={k} onClick={() => setNewReq(p => ({ ...p, category: k }))} style={{
+                    padding: '7px 12px', borderRadius: 8, fontSize: 11, cursor: 'pointer', fontFamily: 'inherit', fontWeight: 500,
+                    display: 'flex', alignItems: 'center', gap: 5,
+                    background: newReq.category === k ? `${c}18` : 'var(--bgCard)',
+                    color: newReq.category === k ? c : 'var(--textMuted)',
+                    border: `1px solid ${newReq.category === k ? c : 'var(--borderLight)'}`,
+                  }}>
+                    <RequestIcon type={k} color={newReq.category === k ? c : 'var(--textDim)'} size={13} />
+                    {l}
+                  </button>
+                ))}
+              </div>
 
-            <label style={{ display: 'block', fontSize: 10, fontWeight: 500, color: 'var(--textMuted)', marginBottom: 4, textTransform: 'uppercase' }}>Zimmernummer</label>
-            <input value={newReq.room} onChange={e => setNewReq(p => ({ ...p, room: e.target.value }))} placeholder="z.B. 101" style={{ width: '100%', padding: '10px 12px', background: 'var(--inputBg)', border: '1px solid var(--borderLight)', borderRadius: 8, fontSize: 13, color: 'var(--text)', outline: 'none', boxSizing: 'border-box', marginBottom: 10, fontFamily: 'inherit' }} />
+              <label style={{ display: 'block', fontSize: 10, fontWeight: 500, color: 'var(--textMuted)', marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.5 }}>Gast / Zimmer</label>
+              {newReq.room ? (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', background: `${selColor}10`, border: `1px solid ${selColor}30`, borderRadius: 8, marginBottom: 10 }}>
+                  <span style={{ fontSize: 12, color: selColor, fontWeight: 500 }}>Zi. {newReq.room} — {newReq.guest_name}</span>
+                  <button onClick={() => { setNewReq(p => ({ ...p, room: '', guest_name: '' })); setGuestSearch('') }} style={{ marginLeft: 'auto', background: 'none', border: 'none', color: 'var(--textDim)', cursor: 'pointer', fontSize: 14 }}>×</button>
+                </div>
+              ) : (
+                <div style={{ position: 'relative', marginBottom: 10 }}>
+                  <input value={guestSearch} onChange={e => setGuestSearch(e.target.value)} placeholder="Zimmer oder Gastname suchen..." style={{ width: '100%', padding: '10px 12px', background: 'var(--inputBg)', border: '1px solid var(--borderLight)', borderRadius: 8, fontSize: 13, color: 'var(--text)', outline: 'none', boxSizing: 'border-box', fontFamily: 'inherit' }} />
+                  {guestSearch && guestMatches.length > 0 && (
+                    <div style={{ position: 'absolute', left: 0, right: 0, top: '100%', marginTop: 4, background: 'var(--modalBg, #111)', border: '1px solid var(--borderLight)', borderRadius: 8, overflow: 'hidden', zIndex: 10, boxShadow: '0 8px 24px rgba(0,0,0,0.4)', maxHeight: 180, overflowY: 'auto' }}>
+                      {guestMatches.slice(0, 8).map(b => (
+                        <button key={b.id} onClick={() => { setNewReq(p => ({ ...p, room: String(b.room), guest_name: b.guest_name })); setGuestSearch('') }} style={{ display: 'block', width: '100%', textAlign: 'left', padding: '10px 14px', border: 'none', borderBottom: '1px solid var(--border)', cursor: 'pointer', background: 'transparent', color: 'var(--text)', fontSize: 12, fontFamily: 'inherit' }}>
+                          <span style={{ fontWeight: 500 }}>Zimmer {b.room}</span> — {b.guest_name}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  {guestSearch && guestMatches.length === 0 && (
+                    <div style={{ marginTop: 6, fontSize: 10, color: 'var(--textDim)' }}>
+                      Kein Gast gefunden —{' '}
+                      <button onClick={() => { setNewReq(p => ({ ...p, room: guestSearch, guest_name: '' })); setGuestSearch('') }} style={{ background: 'none', border: 'none', color: '#3b82f6', cursor: 'pointer', fontSize: 10, fontFamily: 'inherit', textDecoration: 'underline' }}>manuell eingeben</button>
+                    </div>
+                  )}
+                </div>
+              )}
 
-            <label style={{ display: 'block', fontSize: 10, fontWeight: 500, color: 'var(--textMuted)', marginBottom: 4, textTransform: 'uppercase' }}>Gastname</label>
-            <input value={newReq.guest_name} onChange={e => setNewReq(p => ({ ...p, guest_name: e.target.value }))} placeholder="Name des Gastes" style={{ width: '100%', padding: '10px 12px', background: 'var(--inputBg)', border: '1px solid var(--borderLight)', borderRadius: 8, fontSize: 13, color: 'var(--text)', outline: 'none', boxSizing: 'border-box', marginBottom: 10, fontFamily: 'inherit' }} />
+              <label style={{ display: 'block', fontSize: 10, fontWeight: 500, color: 'var(--textMuted)', marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.5 }}>Details</label>
+              <textarea value={newReq.request_details} onChange={e => setNewReq(p => ({ ...p, request_details: e.target.value }))} placeholder="Was wird benötigt?" style={{ width: '100%', padding: '10px 12px', background: 'var(--inputBg)', border: '1px solid var(--borderLight)', borderRadius: 8, fontSize: 13, color: 'var(--text)', outline: 'none', boxSizing: 'border-box', marginBottom: 10, fontFamily: 'inherit', minHeight: 60, resize: 'vertical' }} />
 
-            <label style={{ display: 'block', fontSize: 10, fontWeight: 500, color: 'var(--textMuted)', marginBottom: 4, textTransform: 'uppercase' }}>Details</label>
-            <textarea value={newReq.request_details} onChange={e => setNewReq(p => ({ ...p, request_details: e.target.value }))} placeholder="Was wird benötigt?" style={{ width: '100%', padding: '10px 12px', background: 'var(--inputBg)', border: '1px solid var(--borderLight)', borderRadius: 8, fontSize: 13, color: 'var(--text)', outline: 'none', boxSizing: 'border-box', marginBottom: 14, fontFamily: 'inherit', minHeight: 60, resize: 'vertical' }} />
+              {newReq.category === 'room_service' && <>
+                <label style={{ display: 'block', fontSize: 10, fontWeight: 500, color: 'var(--textMuted)', marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.5 }}>Betrag (€)</label>
+                <input type="number" min="0" step="0.01" value={newReq.order_total} onChange={e => setNewReq(p => ({ ...p, order_total: e.target.value }))} placeholder="0.00" style={{ width: '100%', padding: '10px 12px', background: 'var(--inputBg)', border: '1px solid var(--borderLight)', borderRadius: 8, fontSize: 13, color: 'var(--text)', outline: 'none', boxSizing: 'border-box', marginBottom: 10, fontFamily: 'inherit' }} />
+              </>}
 
-            <div style={{ display: 'flex', gap: 8 }}>
-              <button onClick={() => setShowNewRequest(false)} style={{ flex: 1, padding: 12, background: 'var(--bgCard)', border: '1px solid var(--borderLight)', borderRadius: 10, fontSize: 12, color: 'var(--textMuted)', cursor: 'pointer', fontFamily: 'inherit' }}>Abbrechen</button>
-              <button disabled={!newReq.room || !newReq.request_details} onClick={async () => {
-                await supabase.from('service_requests').insert({ category: newReq.category, room: newReq.room, guest_name: newReq.guest_name, request_details: newReq.request_details, status: 'pending' })
-                setShowNewRequest(false); setNewReq({ category: 'towels', room: '', guest_name: '', request_details: '' }); refresh()
-              }} style={{ flex: 1, padding: 12, background: newReq.room && newReq.request_details ? '#3b82f6' : 'var(--bgCard)', border: 'none', borderRadius: 10, fontSize: 12, fontWeight: 600, color: newReq.room && newReq.request_details ? '#fff' : 'var(--textDim)', cursor: newReq.room && newReq.request_details ? 'pointer' : 'default', fontFamily: 'inherit' }}>Anfrage erstellen</button>
+              <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
+                <button onClick={() => setShowNewRequest(false)} style={{ flex: 1, padding: 12, background: 'var(--bgCard)', border: '1px solid var(--borderLight)', borderRadius: 10, fontSize: 12, color: 'var(--textMuted)', cursor: 'pointer', fontFamily: 'inherit' }}>Abbrechen</button>
+                <button disabled={!newReq.room || !newReq.request_details} onClick={async () => {
+                  await supabase.from('service_requests').insert({ category: newReq.category, room: newReq.room, guest_name: newReq.guest_name, request_details: newReq.request_details, status: 'pending', ...(newReq.order_total ? { order_total: parseFloat(newReq.order_total) } : {}) })
+                  setShowNewRequest(false); setNewReq({ category: 'room_service', room: '', guest_name: '', request_details: '', order_total: '' }); setGuestSearch(''); refresh()
+                }} style={{ flex: 1, padding: 12, background: newReq.room && newReq.request_details ? selColor : 'var(--bgCard)', border: 'none', borderRadius: 10, fontSize: 12, fontWeight: 600, color: newReq.room && newReq.request_details ? '#fff' : 'var(--textDim)', cursor: newReq.room && newReq.request_details ? 'pointer' : 'default', fontFamily: 'inherit' }}>Anfrage erstellen</button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        )
+      })()}
 
       {confirm && <ConfirmDialog {...confirm} onCancel={() => setConfirm(null)} />}
 
