@@ -503,7 +503,7 @@ export default function Dashboard({ user }) {
         const selColor = REQ_CATS.find(([k]) => k === newReq.category)?.[2] || '#3b82f6'
         return (
           <div style={{ position: 'fixed', inset: 0, background: 'var(--overlayBg, rgba(0,0,0,0.7))', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100 }} onClick={() => setShowNewRequest(false)}>
-            <div style={{ background: 'var(--modalBg, #111)', border: '1px solid var(--modalBorder, #222)', borderRadius: 16, padding: '24px 28px', width: '100%', maxWidth: 460 }} onClick={e => e.stopPropagation()}>
+            <div style={{ background: 'var(--modalBg, #111)', border: '1px solid var(--modalBorder, #222)', borderRadius: 16, padding: '24px 28px', width: '100%', maxWidth: newReq.category === 'room_service' ? 720 : 460, transition: 'max-width 0.3s ease' }} onClick={e => e.stopPropagation()}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
                 <h3 style={{ fontSize: 16, fontWeight: 500, color: 'var(--text)', margin: 0 }}>Neue Anfrage erfassen</h3>
                 <button onClick={() => setShowNewRequest(false)} style={{ background: 'var(--bgCard)', border: 'none', borderRadius: 6, width: 28, height: 28, fontSize: 14, cursor: 'pointer', color: 'var(--textMuted)' }}>✕</button>
@@ -552,61 +552,62 @@ export default function Dashboard({ user }) {
                 </div>
               )}
 
-              {/* Room Service: Order Builder */}
+              {/* Room Service: Two-column order builder */}
               {newReq.category === 'room_service' ? <>
-                <label style={{ display: 'block', fontSize: 10, fontWeight: 500, color: 'var(--textMuted)', marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.5 }}>Bestellung</label>
-
-                {/* Current order items */}
-                {orderItems.length > 0 && (
-                  <div style={{ marginBottom: 10, background: 'var(--bgCard)', border: '1px solid var(--borderLight)', borderRadius: 8, overflow: 'hidden' }}>
-                    {orderItems.map((item, idx) => (
-                      <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 10px', borderBottom: '1px solid var(--border)' }}>
-                        <div style={{ flex: 1 }}>
-                          <div style={{ fontSize: 12, color: 'var(--text)' }}>{item.name}</div>
-                          {item.note && <div style={{ fontSize: 9, color: '#f59e0b', marginTop: 1 }}>{item.note}</div>}
-                        </div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                          <button onClick={() => setOrderItems(prev => prev.map((it, i) => i === idx ? { ...it, qty: Math.max(1, it.qty - 1) } : it))} style={{ width: 22, height: 22, borderRadius: 4, background: 'var(--border)', border: 'none', color: 'var(--textMuted)', fontSize: 13, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>−</button>
-                          <span style={{ fontSize: 12, color: 'var(--text)', fontWeight: 500, minWidth: 16, textAlign: 'center' }}>{item.qty}</span>
-                          <button onClick={() => setOrderItems(prev => prev.map((it, i) => i === idx ? { ...it, qty: it.qty + 1 } : it))} style={{ width: 22, height: 22, borderRadius: 4, background: 'var(--border)', border: 'none', color: 'var(--textMuted)', fontSize: 13, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>+</button>
-                        </div>
-                        <span style={{ fontSize: 11, color: 'var(--textMuted)', minWidth: 40, textAlign: 'right' }}>{(item.price * item.qty).toFixed(2)}€</span>
-                        <button onClick={() => setOrderItems(prev => prev.filter((_, i) => i !== idx))} style={{ width: 20, height: 20, borderRadius: 4, background: 'rgba(239,68,68,0.08)', border: 'none', color: '#ef4444', fontSize: 12, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>×</button>
+                <div style={{ display: 'flex', gap: 16, marginBottom: 10 }}>
+                  {/* LEFT: Order list */}
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 10, fontWeight: 500, color: 'var(--textMuted)', marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.5 }}>Bestellung</div>
+                    {orderItems.length === 0 ? (
+                      <div style={{ padding: '24px 0', textAlign: 'center', color: 'var(--textDim)', fontSize: 12 }}>Gerichte aus der Karte hinzufügen →</div>
+                    ) : (
+                      <div style={{ background: 'var(--bgCard)', border: '1px solid var(--borderLight)', borderRadius: 8, overflow: 'hidden' }}>
+                        {orderItems.map((item, idx) => (
+                          <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 10px', borderBottom: '1px solid var(--border)' }}>
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <div style={{ fontSize: 12, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.name}</div>
+                              {item.note && <div style={{ fontSize: 9, color: '#f59e0b', marginTop: 1 }}>{item.note}</div>}
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 3, flexShrink: 0 }}>
+                              <button onClick={() => setOrderItems(prev => prev.map((it, i) => i === idx ? { ...it, qty: Math.max(1, it.qty - 1) } : it))} style={{ width: 20, height: 20, borderRadius: 4, background: 'var(--border)', border: 'none', color: 'var(--textMuted)', fontSize: 13, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>−</button>
+                              <span style={{ fontSize: 12, color: 'var(--text)', fontWeight: 500, minWidth: 14, textAlign: 'center' }}>{item.qty}</span>
+                              <button onClick={() => setOrderItems(prev => prev.map((it, i) => i === idx ? { ...it, qty: it.qty + 1 } : it))} style={{ width: 20, height: 20, borderRadius: 4, background: 'var(--border)', border: 'none', color: 'var(--textMuted)', fontSize: 13, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>+</button>
+                            </div>
+                            <span style={{ fontSize: 11, color: 'var(--textMuted)', minWidth: 36, textAlign: 'right', flexShrink: 0 }}>{(item.price * item.qty).toFixed(2)}€</span>
+                            <button onClick={() => setOrderItems(prev => prev.filter((_, i) => i !== idx))} style={{ width: 18, height: 18, borderRadius: 4, background: 'rgba(239,68,68,0.08)', border: 'none', color: '#ef4444', fontSize: 11, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>×</button>
+                          </div>
+                        ))}
+                        <div style={{ padding: '6px 10px', display: 'flex', justifyContent: 'space-between', fontSize: 10, color: 'var(--textDim)' }}><span>Zwischensumme</span><span>{orderItems.reduce((s, i) => s + i.price * i.qty, 0).toFixed(2)}€</span></div>
+                        <div style={{ padding: '4px 10px', display: 'flex', justifyContent: 'space-between', fontSize: 10, color: 'var(--textDim)' }}><span>Service-Zuschlag</span><span>{ROOM_SERVICE_FEE.toFixed(2)}€</span></div>
+                        <div style={{ padding: '8px 10px', display: 'flex', justifyContent: 'space-between', fontSize: 13, fontWeight: 600, color: '#f59e0b', borderTop: '1px solid var(--border)' }}><span>Gesamt</span><span>{(orderItems.reduce((s, i) => s + i.price * i.qty, 0) + ROOM_SERVICE_FEE).toFixed(2)}€</span></div>
                       </div>
-                    ))}
-                    <div style={{ padding: '8px 10px', display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'var(--textMuted)' }}>
-                      <span>Zwischensumme</span><span>{orderItems.reduce((s, i) => s + i.price * i.qty, 0).toFixed(2)}€</span>
-                    </div>
-                    <div style={{ padding: '6px 10px', display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'var(--textMuted)' }}>
-                      <span>Service-Zuschlag</span><span>{ROOM_SERVICE_FEE.toFixed(2)}€</span>
-                    </div>
-                    <div style={{ padding: '8px 10px', display: 'flex', justifyContent: 'space-between', fontSize: 13, fontWeight: 600, color: 'var(--text)', borderTop: '1px solid var(--border)' }}>
-                      <span>Gesamt</span><span>{(orderItems.reduce((s, i) => s + i.price * i.qty, 0) + ROOM_SERVICE_FEE).toFixed(2)}€</span>
+                    )}
+                  </div>
+
+                  {/* RIGHT: Product catalog */}
+                  <div style={{ width: 240, flexShrink: 0 }}>
+                    <div style={{ fontSize: 10, fontWeight: 500, color: 'var(--textMuted)', marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.5 }}>Speisekarte</div>
+                    <input value={menuSearch} onChange={e => setMenuSearch(e.target.value)} placeholder="Suchen..." style={{ width: '100%', padding: '6px 10px', background: 'var(--inputBg)', border: '1px solid var(--borderLight)', borderRadius: 6, fontSize: 11, color: 'var(--text)', outline: 'none', boxSizing: 'border-box', marginBottom: 6, fontFamily: 'inherit' }} />
+                    <div style={{ maxHeight: 280, overflowY: 'auto', background: 'var(--bgCard)', border: '1px solid var(--borderLight)', borderRadius: 8, overflow: 'hidden' }}>
+                      {Object.entries(MENU).map(([cat, items]) => {
+                        const mq = menuSearch.toLowerCase()
+                        const filtered = mq ? items.filter(([n]) => n.toLowerCase().includes(mq)) : items
+                        if (filtered.length === 0) return null
+                        return (
+                          <div key={cat}>
+                            <div style={{ fontSize: 8, color: 'var(--textDim)', textTransform: 'uppercase', letterSpacing: 0.5, padding: '5px 10px', background: 'var(--bgSec, var(--bgCard))', borderBottom: '1px solid var(--border)' }}>{cat}</div>
+                            {filtered.map(([name, price]) => (
+                              <div key={name} style={{ display: 'flex', alignItems: 'center', padding: '5px 10px', borderBottom: '1px solid var(--border)', gap: 6 }}>
+                                <span style={{ fontSize: 11, color: 'var(--textSec)', flex: 1 }}>{name}</span>
+                                <span style={{ fontSize: 10, color: 'var(--textDim)', flexShrink: 0 }}>{price.toFixed(2)}€</span>
+                                <button onClick={() => setOrderItems(prev => { const ex = prev.findIndex(i => i.name === name && !i.note); if (ex >= 0) { const n = [...prev]; n[ex] = { ...n[ex], qty: n[ex].qty + 1 }; return n } return [...prev, { name, price, qty: 1, note: '' }] })} style={{ width: 22, height: 22, borderRadius: 6, background: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.2)', color: '#10b981', fontSize: 14, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>+</button>
+                              </div>
+                            ))}
+                          </div>
+                        )
+                      })}
                     </div>
                   </div>
-                )}
-
-                {/* Menu search + add */}
-                <input value={menuSearch} onChange={e => setMenuSearch(e.target.value)} placeholder="Gericht suchen..." style={{ width: '100%', padding: '8px 10px', background: 'var(--inputBg)', border: '1px solid var(--borderLight)', borderRadius: 8, fontSize: 12, color: 'var(--text)', outline: 'none', boxSizing: 'border-box', marginBottom: 6, fontFamily: 'inherit' }} />
-                <div style={{ maxHeight: 150, overflowY: 'auto', marginBottom: 10 }}>
-                  {Object.entries(MENU).map(([cat, items]) => {
-                    const mq = menuSearch.toLowerCase()
-                    const filtered = mq ? items.filter(([n]) => n.toLowerCase().includes(mq)) : items
-                    if (filtered.length === 0) return null
-                    return (
-                      <div key={cat}>
-                        <div style={{ fontSize: 9, color: 'var(--textDim)', textTransform: 'uppercase', letterSpacing: 0.5, padding: '4px 6px', background: 'var(--bgSec, var(--bgCard))' }}>{cat}</div>
-                        {filtered.map(([name, price]) => (
-                          <button key={name} onClick={() => {
-                            const note = prompt('Sonderwunsch? (optional)')
-                            setOrderItems(prev => { const ex = prev.findIndex(i => i.name === name && !i.note && !note); if (ex >= 0) { const n = [...prev]; n[ex] = { ...n[ex], qty: n[ex].qty + 1 }; return n } return [...prev, { name, price, qty: 1, note: note || '' }] })
-                          }} style={{ display: 'flex', justifyContent: 'space-between', width: '100%', padding: '6px 8px', border: 'none', borderBottom: '1px solid var(--border)', cursor: 'pointer', background: 'transparent', color: 'var(--text)', fontSize: 11, fontFamily: 'inherit', textAlign: 'left' }}>
-                            <span>{name}</span><span style={{ color: 'var(--textMuted)' }}>{price.toFixed(2)}€</span>
-                          </button>
-                        ))}
-                      </div>
-                    )
-                  })}
                 </div>
               </> : <>
                 {/* Other categories: simple details field */}
