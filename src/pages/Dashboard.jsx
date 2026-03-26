@@ -129,12 +129,12 @@ export default function Dashboard({ user }) {
   }
 
   const getRequestLabel = (type) => {
-    const map = { taxi: 'Taxi', complaint: 'Beschwerde', room_service: 'Room Service', pillow: 'Kissen', towels: 'Handtücher', housekeeping: 'Reinigung', wake_up: 'Weckruf', luggage: 'Gepäck', maintenance: 'Wartung', late_checkout: 'Late Checkout' }
+    const map = { taxi: '🚕 Taxi', complaint: '⚠️ Beschwerde', room_service: '🍽️ Room Service', pillow: '🛏️ Kissen', towels: '🧹 Handtücher', housekeeping: '🧹 Reinigung', wake_up: '⏰ Weckruf', luggage: '🧳 Gepäck', maintenance: '🔧 Wartung', late_checkout: '🕐 Late Checkout' }
     return map[type] || type
   }
 
   const getRequestColor = (type) => {
-    const map = { taxi: '#3b82f6', complaint: '#ef4444', room_service: '#f59e0b', pillow: '#8b5cf6', towels: '#8b5cf6', housekeeping: '#10b981', maintenance: '#f59e0b', late_checkout: '#8b5cf6' }
+    const map = { room_service: '#f59e0b', housekeeping: '#3b82f6', maintenance: '#ef4444', taxi: '#eab308', complaint: '#991b1b', late_checkout: '#8b5cf6', luggage: '#14b8a6', pillow: '#3b82f6', towels: '#3b82f6', wake_up: '#6b7280' }
     return map[type] || '#6b7280'
   }
 
