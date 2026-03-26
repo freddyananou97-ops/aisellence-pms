@@ -21,6 +21,7 @@ export default function Dashboard({ user }) {
   const [confirm, setConfirm] = useState(null)
   const { notify } = useNotifications('dashboard')
   const [weather, setWeather] = useState(null)
+  const [weatherDay, setWeatherDay] = useState(null)
   const [cashPending, setCashPending] = useState([])
 
   // Listen for cash payment requests
@@ -43,7 +44,7 @@ export default function Dashboard({ user }) {
   }
 
   useEffect(() => {
-    fetch('https://api.open-meteo.com/v1/forecast?latitude=48.7665&longitude=11.4258&current=temperature_2m,weathercode,windspeed_10m&daily=temperature_2m_max,temperature_2m_min,weathercode,precipitation_probability_max&timezone=Europe/Berlin&forecast_days=7')
+    fetch('https://api.open-meteo.com/v1/forecast?latitude=48.7665&longitude=11.4258&current=temperature_2m,weathercode,windspeed_10m,apparent_temperature,relative_humidity_2m&daily=temperature_2m_max,temperature_2m_min,weathercode,precipitation_probability_max,precipitation_sum,windspeed_10m_max,winddirection_10m_dominant,uv_index_max,sunrise,sunset&hourly=temperature_2m,weathercode&timezone=Europe/Berlin&forecast_days=7')
       .then(r => r.json()).then(d => setWeather(d)).catch(() => {})
   }, [])
 
@@ -375,16 +376,111 @@ export default function Dashboard({ user }) {
                   const di = dc <= 1 ? '☀️' : dc <= 3 ? '⛅' : dc <= 48 ? '🌫️' : dc <= 55 ? '🌦️' : dc <= 65 ? '🌧️' : dc <= 75 ? '🌨️' : dc <= 82 ? '🌦️' : dc <= 86 ? '🌨️' : '⛈️'
                   const rain = weather.daily.precipitation_probability_max?.[i] ?? 0
                   const isToday = day === new Date().toISOString().split('T')[0]
+                  const isSel = weatherDay === i
                   return (
-                    <div key={day} style={{ flex: 1, textAlign: 'center', background: isToday ? 'rgba(255,255,255,0.03)' : 'var(--bgCard,#111)', borderRadius: 8, padding: '8px 4px', border: isToday ? '1px solid var(--borderLight,#222)' : '1px solid transparent' }}>
-                      <div style={{ fontSize: 9, color: isToday ? 'var(--text,#fff)' : 'var(--textDim,#555)', fontWeight: isToday ? 500 : 400 }}>{new Date(day + 'T00:00').toLocaleDateString('de-DE', { weekday: 'short' }).slice(0, 2)}</div>
+                    <button key={day} onClick={() => setWeatherDay(isSel ? null : i)} style={{ flex: 1, textAlign: 'center', background: isSel ? 'rgba(59,130,246,0.08)' : isToday ? 'rgba(255,255,255,0.03)' : 'var(--bgCard,#111)', borderRadius: 8, padding: '8px 4px', border: isSel ? '1px solid #3b82f6' : isToday ? '1px solid var(--borderLight,#222)' : '1px solid transparent', cursor: 'pointer', fontFamily: 'inherit' }}>
+                      <div style={{ fontSize: 9, color: isSel ? '#3b82f6' : isToday ? 'var(--text,#fff)' : 'var(--textDim,#555)', fontWeight: isSel || isToday ? 500 : 400 }}>{new Date(day + 'T12:00').toLocaleDateString('de-DE', { weekday: 'short' }).slice(0, 2)}</div>
                       <div style={{ fontSize: 16, margin: '4px 0' }}>{di}</div>
                       <div style={{ fontSize: 12, color: 'var(--textSec,#ccc)', fontWeight: 500 }}>{Math.round(weather.daily.temperature_2m_max[i])}°</div>
                       <div style={{ fontSize: 8, color: rain > 20 ? '#3b82f6' : 'var(--textDim,#444)', marginTop: 2 }}>{rain}%</div>
-                    </div>
+                    </button>
                   )
                 })}
               </div>
+
+              {/* Weather Day Detail Panel */}
+              {weatherDay !== null && (() => {
+                const i = weatherDay
+                const day = weather.daily.time[i]
+                const dc = weather.daily.weathercode[i]
+                const dl = dc <= 1 ? 'Klar' : dc <= 3 ? 'Bewölkt' : dc <= 48 ? 'Nebel' : dc <= 55 ? 'Nieselregen' : dc <= 65 ? 'Regen' : dc <= 75 ? 'Schnee' : dc <= 82 ? 'Regenschauer' : dc <= 86 ? 'Schneeschauer' : 'Gewitter'
+                const di = dc <= 1 ? '☀️' : dc <= 3 ? '⛅' : dc <= 48 ? '🌫️' : dc <= 55 ? '🌦️' : dc <= 65 ? '🌧️' : dc <= 75 ? '🌨️' : dc <= 82 ? '🌦️' : dc <= 86 ? '🌨️' : '⛈️'
+                const rain = weather.daily.precipitation_probability_max?.[i] ?? 0
+                const precip = weather.daily.precipitation_sum?.[i] ?? 0
+                const wind = weather.daily.windspeed_10m_max?.[i] ?? 0
+                const windDir = weather.daily.winddirection_10m_dominant?.[i] ?? 0
+                const uv = weather.daily.uv_index_max?.[i] ?? 0
+                const sunrise = weather.daily.sunrise?.[i]
+                const sunset = weather.daily.sunset?.[i]
+                const tMax = weather.daily.temperature_2m_max[i]
+
+                // Hourly data for this day
+                const hourlyTemps = weather.hourly?.temperature_2m || []
+                const hourlyCodes = weather.hourly?.weathercode || []
+                const hourlyTimes = weather.hourly?.time || []
+                const dayHours = hourlyTimes.map((t, hi) => ({ time: t, temp: hourlyTemps[hi], code: hourlyCodes[hi] })).filter(h => h.time?.startsWith(day))
+
+                // Hotel tips
+                const tips = []
+                if (rain > 40 || (dc >= 51 && dc <= 67)) tips.push({ text: 'Indoor-Aktivitäten empfehlen', color: '#3b82f6' })
+                if (tMax > 30) tips.push({ text: 'Gäste auf Pool/Spa hinweisen', color: '#f59e0b' })
+                if (dc >= 95 || wind > 60) tips.push({ text: 'Terrasse/Biergarten ggf. schließen', color: '#ef4444' })
+
+                const dirs = ['N','NO','O','SO','S','SW','W','NW']
+                const windDirLabel = dirs[Math.round(windDir / 45) % 8]
+
+                return (
+                  <div style={{ padding: '12px 16px', borderTop: '1px solid var(--border)' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 10 }}>
+                      <div style={{ fontSize: 32 }}>{di}</div>
+                      <div>
+                        <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--text)' }}>{new Date(day + 'T12:00').toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'long' })}</div>
+                        <div style={{ fontSize: 12, color: 'var(--textSec)' }}>{dl}</div>
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8, marginBottom: 10 }}>
+                      {[
+                        ['Min / Max', `${Math.round(weather.daily.temperature_2m_min[i])}° / ${Math.round(tMax)}°`],
+                        ['Niederschlag', `${rain}% · ${precip.toFixed(1)}mm`],
+                        ['Wind', `${Math.round(wind)} km/h ${windDirLabel}`],
+                        ['UV-Index', String(Math.round(uv))],
+                      ].map(([l, v]) => (
+                        <div key={l} style={{ padding: '8px', background: 'var(--bgCard)', borderRadius: 8, border: '1px solid var(--border)' }}>
+                          <div style={{ fontSize: 9, color: 'var(--textDim)', textTransform: 'uppercase', letterSpacing: 0.3 }}>{l}</div>
+                          <div style={{ fontSize: 12, color: 'var(--text)', fontWeight: 500, marginTop: 2 }}>{v}</div>
+                        </div>
+                      ))}
+                    </div>
+
+                    {sunrise && sunset && (
+                      <div style={{ fontSize: 10, color: 'var(--textDim)', marginBottom: 10 }}>
+                        Sonnenaufgang {sunrise.split('T')[1]?.slice(0, 5)} · Untergang {sunset.split('T')[1]?.slice(0, 5)}
+                      </div>
+                    )}
+
+                    {/* Hourly */}
+                    {dayHours.length > 0 && (
+                      <div style={{ overflowX: 'auto', marginBottom: 10 }}>
+                        <div style={{ display: 'flex', gap: 2, minWidth: dayHours.length * 44 }}>
+                          {dayHours.filter((_, hi) => hi % 2 === 0).map(h => {
+                            const hc = h.code; const hi2 = hc <= 1 ? '☀️' : hc <= 3 ? '⛅' : hc <= 48 ? '🌫️' : hc <= 65 ? '🌧️' : hc <= 86 ? '🌨️' : '⛈️'
+                            return (
+                              <div key={h.time} style={{ textAlign: 'center', minWidth: 40, padding: '4px 2px' }}>
+                                <div style={{ fontSize: 8, color: 'var(--textDim)' }}>{h.time.split('T')[1]?.slice(0, 5)}</div>
+                                <div style={{ fontSize: 12, margin: '2px 0' }}>{hi2}</div>
+                                <div style={{ fontSize: 10, color: 'var(--textSec)', fontWeight: 500 }}>{Math.round(h.temp)}°</div>
+                              </div>
+                            )
+                          })}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Hotel tips */}
+                    {tips.length > 0 && (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                        {tips.map((tip, ti) => (
+                          <div key={ti} style={{ fontSize: 10, padding: '5px 10px', borderRadius: 6, background: `${tip.color}08`, border: `1px solid ${tip.color}20`, color: tip.color, fontWeight: 500 }}>
+                            Tipp: {tip.text}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )
+              })()}
+
               <div style={{ padding: '6px 16px 10px', fontSize: 9, color: 'var(--textDim,#333)' }}>Quelle: Open-Meteo API · Live</div>
             </>
           })() : (
