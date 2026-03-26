@@ -80,14 +80,7 @@ export default function Dashboard({ user }) {
   const dCI = checkInsToday
   const dCO = checkOutsToday
   const dLogs = logs
-  const dEvents = events.length > 0 ? events : [
-    { start_date: '2026-03-23', event_name: 'FC Ingolstadt vs. TSV 1860', event_type: 'fussball', impact_level: 'high' },
-    { start_date: '2026-03-25', event_name: 'Audi Zulieferer-Konferenz', event_type: 'messe', impact_level: 'medium' },
-    { start_date: '2026-03-27', event_name: 'ERC Ingolstadt Playoff Heim vs München', event_type: 'eishockey', impact_level: 'high' },
-    { start_date: '2026-03-28', event_name: 'ABBA Concert Theater', event_type: 'konzert', impact_level: 'medium' },
-    { start_date: '2026-03-28', event_name: 'Ingolstädter Frühjahrsmesse', event_type: 'volksfest', impact_level: 'low' },
-    { start_date: '2026-03-29', event_name: 'ERC Ingolstadt Playoff Heim vs München', event_type: 'eishockey', impact_level: 'high' },
-  ]
+  const dEvents = events
   const dComp = (revenueData?.competitor_prices ? (typeof revenueData.competitor_prices === 'string' ? JSON.parse(revenueData.competitor_prices) : revenueData.competitor_prices) : []).length > 0
     ? (typeof revenueData.competitor_prices === 'string' ? JSON.parse(revenueData.competitor_prices) : revenueData.competitor_prices)
     : [{ name: 'NH Hotel', price: 109, diff: -9 }, { name: 'IntercityHotel', price: 109, diff: -9 }, { name: 'Rappensberger', price: 111, diff: -7 }, { name: 'BLOCK Hotel', price: 170, diff: 52 }]
@@ -333,6 +326,7 @@ export default function Dashboard({ user }) {
       {/* Row 4: Events + Weather */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 16 }}>
         <Card title="Events diese Woche" extra={`${dEvents.length}`}>
+          {dEvents.length === 0 && <div style={{ padding: 16, textAlign: 'center', color: 'var(--textDim)', fontSize: 12 }}>Keine Events diese Woche</div>}
           {dEvents.slice(0, 6).map((ev, i) => {
             const impactColor = ev.impact_level === 'high' ? '#ef4444' : ev.impact_level === 'medium' ? '#3b82f6' : '#555'
             const isMultiDay = ev.end_date && ev.end_date !== ev.start_date

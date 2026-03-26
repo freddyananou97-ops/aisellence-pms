@@ -13,6 +13,8 @@ export default async function handler(req, res) {
   if (!ANTHROPIC_KEY) return res.status(500).json({ error: 'ANTHROPIC_API_KEY not configured.' })
   if (!SUPABASE_KEY) return res.status(500).json({ error: 'SUPABASE_ANON_KEY not configured.' })
 
+  const debug = req.query?.debug === '1'
+  const debugLog = []
   const supabase = createClient(SUPABASE_URL, SUPABASE_KEY)
 
   try {
@@ -50,6 +52,7 @@ export default async function handler(req, res) {
 
     const claudeData = await claudeRes.json()
     console.log('Claude response content blocks:', claudeData.content?.length)
+    if (debug) debugLog.push({ step: 'claude_response', blocks: claudeData.content?.length, stop_reason: claudeData.stop_reason })
 
     // Extract text from response (may have multiple content blocks with tool use)
     let jsonText = ''
@@ -77,41 +80,50 @@ export default async function handler(req, res) {
     }
 
     console.log(`Parsed ${events.length} events from Claude`)
+    if (debug) debugLog.push({ step: 'parsed', count: events.length, events })
 
     // Insert new events (skip duplicates)
     let inserted = 0
+    const insertResults = []
     for (const ev of events) {
-      if (!ev.name || !ev.date) continue
+      if (!ev.name || !ev.date) { insertResults.push({ name: ev.name, skip: 'missing name or date' }); continue }
 
-      // Check for existing event with same name + date
-      const { data: existing } = await supabase.from('events_calendar')
+      const { data: existing, error: checkErr } = await supabase.from('events_calendar')
         .select('id')
         .eq('event_name', ev.name)
         .eq('start_date', ev.date)
         .maybeSingle()
 
-      if (existing) {
-        console.log(`  Skip (exists): ${ev.name} on ${ev.date}`)
+      if (checkErr) {
+        console.error(`  Check error for ${ev.name}:`, checkErr.message)
+        insertResults.push({ name: ev.name, date: ev.date, skip: 'check_error', error: checkErr.message })
         continue
       }
 
-      const { error: insErr } = await supabase.from('events_calendar').insert({
-        event_name: ev.name,
-        start_date: ev.date,
-        event_type: ev.type || 'sonstiges',
-        impact_level: ev.impact || 'medium',
-        description: ev.description || null,
-      })
+      if (existing) {
+        console.log(`  Skip (exists): ${ev.name} on ${ev.date}`)
+        insertResults.push({ name: ev.name, date: ev.date, skip: 'exists' })
+        continue
+      }
+
+      const row = { event_name: ev.name, start_date: ev.date, event_type: ev.type || 'sonstiges', impact_level: ev.impact || 'medium', description: ev.description || null }
+      const { error: insErr } = await supabase.from('events_calendar').insert(row)
 
       if (insErr) {
         console.error(`  Insert error for ${ev.name}:`, insErr.message)
+        insertResults.push({ name: ev.name, date: ev.date, result: 'error', error: insErr.message, row })
       } else {
         console.log(`  Inserted: ${ev.name} on ${ev.date}`)
+        insertResults.push({ name: ev.name, date: ev.date, result: 'inserted' })
         inserted++
       }
     }
 
-    res.status(200).json({ total: events.length, inserted, skipped: events.length - inserted })
+    const result = { total: events.length, inserted, skipped: events.length - inserted }
+    if (debug) result.debugLog = debugLog
+    if (debug) result.claudeRaw = jsonText.slice(0, 1000)
+    if (debug) result.insertResults = insertResults
+    res.status(200).json(result)
   } catch (err) {
     console.error('Event update error:', err)
     res.status(500).json({ error: err.message })
