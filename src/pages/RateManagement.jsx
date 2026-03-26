@@ -189,12 +189,12 @@ export default function RateManagement() {
                 <div style={{ fontSize: 10, color: 'var(--textDim)', textTransform: 'uppercase', letterSpacing: 0.5, marginTop: 12, marginBottom: 6 }}>Konkurrenz</div>
                 {dayComp.map((c, i) => {
                   const own = selectedDay.prices[0]?.effectivePrice || 0
-                  const diff = c.price - own
+                  const diff = Math.round(c.price) - Math.round(own)
                   return (
                     <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0' }}>
                       <span style={{ fontSize: 11, color: 'var(--textMuted)' }}>{c.hotel_name}</span>
                       <div style={{ display: 'flex', gap: 6 }}>
-                        <span style={{ fontSize: 11, color: 'var(--text)' }}>{c.price}€</span>
+                        <span style={{ fontSize: 11, color: 'var(--text)' }}>{Math.round(c.price)}€</span>
                         <span style={{ fontSize: 9, padding: '1px 5px', borderRadius: 3, background: diff < 0 ? 'rgba(16,185,129,0.08)' : 'rgba(239,68,68,0.08)', color: diff < 0 ? '#10b981' : '#ef4444' }}>{diff > 0 ? '+' : ''}{diff.toFixed(0)}€</span>
                       </div>
                     </div>
@@ -288,7 +288,7 @@ export default function RateManagement() {
                   <div style={{ padding: '8px 12px', fontSize: 11, color: 'var(--textSec)', borderBottom: '1px solid var(--border)' }}>{h.hotel_name.split(' ').slice(0, 2).join(' ')}</div>
                   {next14.map(d => {
                     const cp = competitors.find(c => c.hotel_name === h.hotel_name && c.date_checked === d)
-                    return <div key={d} style={{ padding: '8px 4px', textAlign: 'center', fontSize: 11, color: cp ? 'var(--text)' : 'var(--textDim)', borderBottom: '1px solid var(--border)' }}>{cp ? `${cp.price}€` : '—'}</div>
+                    return <div key={d} style={{ padding: '8px 4px', textAlign: 'center', fontSize: 11, color: cp ? 'var(--text)' : 'var(--textDim)', borderBottom: '1px solid var(--border)' }}>{cp ? `${Math.round(cp.price)}€` : '—'}</div>
                   })}
                 </div>
               ))}

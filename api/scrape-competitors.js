@@ -69,14 +69,15 @@ export default async function handler(req, res) {
         const price = item?.price?.value || item?.price || item?.rooms?.[0]?.price || null
 
         if (price && !isNaN(parseFloat(price))) {
+          const roundedPrice = Math.round(parseFloat(price) * 100) / 100
           await supabase.from('competitor_prices').insert({
             hotel_name: hotel.hotel_name,
-            price: parseFloat(price),
+            price: roundedPrice,
             date_checked: checkin,
             source: 'booking.com',
             room_type: 'Doppelzimmer',
           })
-          results.push({ hotel: hotel.hotel_name, price: parseFloat(price), date: checkin })
+          results.push({ hotel: hotel.hotel_name, price: roundedPrice, date: checkin })
         } else {
           results.push({ hotel: hotel.hotel_name, price: null, error: 'No price in response', raw: JSON.stringify(data).slice(0, 100) })
         }
