@@ -6,6 +6,7 @@ import { useTier } from '../lib/tier.jsx'
 import LoadingSkeleton from '../components/LoadingSkeleton'
 import { openPrintPage, buildTable } from '../lib/print'
 import { MAKE_WEBHOOKS } from '../lib/hotel'
+import { MENU, ROOM_SERVICE_FEE } from '../lib/menu'
 import ConfirmDialog from '../components/ConfirmDialog'
 
 export default function Dashboard({ user }) {
@@ -95,8 +96,10 @@ export default function Dashboard({ user }) {
   // Booking detail popup
   const [bookingDetail, setBookingDetail] = useState(null)
   const [showNewRequest, setShowNewRequest] = useState(false)
-  const [newReq, setNewReq] = useState({ category: 'room_service', room: '', guest_name: '', request_details: '', order_total: '' })
+  const [newReq, setNewReq] = useState({ category: 'room_service', room: '', guest_name: '', request_details: '', order_total: '', booking_id: '' })
   const [guestSearch, setGuestSearch] = useState('')
+  const [orderItems, setOrderItems] = useState([]) // [{name, price, qty, note}]
+  const [menuSearch, setMenuSearch] = useState('')
 
   const handleTaxiConfirm = (req) => {
     const mins = taxiMinutes[req.id] || ''
@@ -442,7 +445,7 @@ export default function Dashboard({ user }) {
                   {guestSearch && guestMatches.length > 0 && (
                     <div style={{ position: 'absolute', left: 0, right: 0, top: '100%', marginTop: 4, background: 'var(--modalBg, #111)', border: '1px solid var(--borderLight)', borderRadius: 8, overflow: 'hidden', zIndex: 10, boxShadow: '0 8px 24px rgba(0,0,0,0.4)', maxHeight: 180, overflowY: 'auto' }}>
                       {guestMatches.slice(0, 8).map(b => (
-                        <button key={b.id} onClick={() => { setNewReq(p => ({ ...p, room: String(b.room), guest_name: b.guest_name })); setGuestSearch('') }} style={{ display: 'block', width: '100%', textAlign: 'left', padding: '10px 14px', border: 'none', borderBottom: '1px solid var(--border)', cursor: 'pointer', background: 'transparent', color: 'var(--text)', fontSize: 12, fontFamily: 'inherit' }}>
+                        <button key={b.id} onClick={() => { setNewReq(p => ({ ...p, room: String(b.room), guest_name: b.guest_name, booking_id: b.booking_id || '' })); setGuestSearch('') }} style={{ display: 'block', width: '100%', textAlign: 'left', padding: '10px 14px', border: 'none', borderBottom: '1px solid var(--border)', cursor: 'pointer', background: 'transparent', color: 'var(--text)', fontSize: 12, fontFamily: 'inherit' }}>
                           <span style={{ fontWeight: 500 }}>Zimmer {b.room}</span> — {b.guest_name}
                         </button>
                       ))}
@@ -457,20 +460,80 @@ export default function Dashboard({ user }) {
                 </div>
               )}
 
-              <label style={{ display: 'block', fontSize: 10, fontWeight: 500, color: 'var(--textMuted)', marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.5 }}>Details</label>
-              <textarea value={newReq.request_details} onChange={e => setNewReq(p => ({ ...p, request_details: e.target.value }))} placeholder="Was wird benötigt?" style={{ width: '100%', padding: '10px 12px', background: 'var(--inputBg)', border: '1px solid var(--borderLight)', borderRadius: 8, fontSize: 13, color: 'var(--text)', outline: 'none', boxSizing: 'border-box', marginBottom: 10, fontFamily: 'inherit', minHeight: 60, resize: 'vertical' }} />
+              {/* Room Service: Order Builder */}
+              {newReq.category === 'room_service' ? <>
+                <label style={{ display: 'block', fontSize: 10, fontWeight: 500, color: 'var(--textMuted)', marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.5 }}>Bestellung</label>
 
-              {newReq.category === 'room_service' && <>
-                <label style={{ display: 'block', fontSize: 10, fontWeight: 500, color: 'var(--textMuted)', marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.5 }}>Betrag (€)</label>
-                <input type="number" min="0" step="0.01" value={newReq.order_total} onChange={e => setNewReq(p => ({ ...p, order_total: e.target.value }))} placeholder="0.00" style={{ width: '100%', padding: '10px 12px', background: 'var(--inputBg)', border: '1px solid var(--borderLight)', borderRadius: 8, fontSize: 13, color: 'var(--text)', outline: 'none', boxSizing: 'border-box', marginBottom: 10, fontFamily: 'inherit' }} />
+                {/* Current order items */}
+                {orderItems.length > 0 && (
+                  <div style={{ marginBottom: 10, background: 'var(--bgCard)', border: '1px solid var(--borderLight)', borderRadius: 8, overflow: 'hidden' }}>
+                    {orderItems.map((item, idx) => (
+                      <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 10px', borderBottom: '1px solid var(--border)' }}>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontSize: 12, color: 'var(--text)' }}>{item.name}</div>
+                          {item.note && <div style={{ fontSize: 9, color: '#f59e0b', marginTop: 1 }}>{item.note}</div>}
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                          <button onClick={() => setOrderItems(prev => prev.map((it, i) => i === idx ? { ...it, qty: Math.max(1, it.qty - 1) } : it))} style={{ width: 22, height: 22, borderRadius: 4, background: 'var(--border)', border: 'none', color: 'var(--textMuted)', fontSize: 13, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>−</button>
+                          <span style={{ fontSize: 12, color: 'var(--text)', fontWeight: 500, minWidth: 16, textAlign: 'center' }}>{item.qty}</span>
+                          <button onClick={() => setOrderItems(prev => prev.map((it, i) => i === idx ? { ...it, qty: it.qty + 1 } : it))} style={{ width: 22, height: 22, borderRadius: 4, background: 'var(--border)', border: 'none', color: 'var(--textMuted)', fontSize: 13, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>+</button>
+                        </div>
+                        <span style={{ fontSize: 11, color: 'var(--textMuted)', minWidth: 40, textAlign: 'right' }}>{(item.price * item.qty).toFixed(2)}€</span>
+                        <button onClick={() => setOrderItems(prev => prev.filter((_, i) => i !== idx))} style={{ width: 20, height: 20, borderRadius: 4, background: 'rgba(239,68,68,0.08)', border: 'none', color: '#ef4444', fontSize: 12, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>×</button>
+                      </div>
+                    ))}
+                    <div style={{ padding: '8px 10px', display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'var(--textMuted)' }}>
+                      <span>Zwischensumme</span><span>{orderItems.reduce((s, i) => s + i.price * i.qty, 0).toFixed(2)}€</span>
+                    </div>
+                    <div style={{ padding: '6px 10px', display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'var(--textMuted)' }}>
+                      <span>Service-Zuschlag</span><span>{ROOM_SERVICE_FEE.toFixed(2)}€</span>
+                    </div>
+                    <div style={{ padding: '8px 10px', display: 'flex', justifyContent: 'space-between', fontSize: 13, fontWeight: 600, color: 'var(--text)', borderTop: '1px solid var(--border)' }}>
+                      <span>Gesamt</span><span>{(orderItems.reduce((s, i) => s + i.price * i.qty, 0) + ROOM_SERVICE_FEE).toFixed(2)}€</span>
+                    </div>
+                  </div>
+                )}
+
+                {/* Menu search + add */}
+                <input value={menuSearch} onChange={e => setMenuSearch(e.target.value)} placeholder="Gericht suchen..." style={{ width: '100%', padding: '8px 10px', background: 'var(--inputBg)', border: '1px solid var(--borderLight)', borderRadius: 8, fontSize: 12, color: 'var(--text)', outline: 'none', boxSizing: 'border-box', marginBottom: 6, fontFamily: 'inherit' }} />
+                <div style={{ maxHeight: 150, overflowY: 'auto', marginBottom: 10 }}>
+                  {Object.entries(MENU).map(([cat, items]) => {
+                    const mq = menuSearch.toLowerCase()
+                    const filtered = mq ? items.filter(([n]) => n.toLowerCase().includes(mq)) : items
+                    if (filtered.length === 0) return null
+                    return (
+                      <div key={cat}>
+                        <div style={{ fontSize: 9, color: 'var(--textDim)', textTransform: 'uppercase', letterSpacing: 0.5, padding: '4px 6px', background: 'var(--bgSec, var(--bgCard))' }}>{cat}</div>
+                        {filtered.map(([name, price]) => (
+                          <button key={name} onClick={() => {
+                            const note = prompt('Sonderwunsch? (optional)')
+                            setOrderItems(prev => { const ex = prev.findIndex(i => i.name === name && !i.note && !note); if (ex >= 0) { const n = [...prev]; n[ex] = { ...n[ex], qty: n[ex].qty + 1 }; return n } return [...prev, { name, price, qty: 1, note: note || '' }] })
+                          }} style={{ display: 'flex', justifyContent: 'space-between', width: '100%', padding: '6px 8px', border: 'none', borderBottom: '1px solid var(--border)', cursor: 'pointer', background: 'transparent', color: 'var(--text)', fontSize: 11, fontFamily: 'inherit', textAlign: 'left' }}>
+                            <span>{name}</span><span style={{ color: 'var(--textMuted)' }}>{price.toFixed(2)}€</span>
+                          </button>
+                        ))}
+                      </div>
+                    )
+                  })}
+                </div>
+              </> : <>
+                {/* Other categories: simple details field */}
+                <label style={{ display: 'block', fontSize: 10, fontWeight: 500, color: 'var(--textMuted)', marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.5 }}>Details</label>
+                <textarea value={newReq.request_details} onChange={e => setNewReq(p => ({ ...p, request_details: e.target.value }))} placeholder="Was wird benötigt?" style={{ width: '100%', padding: '10px 12px', background: 'var(--inputBg)', border: '1px solid var(--borderLight)', borderRadius: 8, fontSize: 13, color: 'var(--text)', outline: 'none', boxSizing: 'border-box', marginBottom: 10, fontFamily: 'inherit', minHeight: 60, resize: 'vertical' }} />
               </>}
 
               <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
-                <button onClick={() => setShowNewRequest(false)} style={{ flex: 1, padding: 12, background: 'var(--bgCard)', border: '1px solid var(--borderLight)', borderRadius: 10, fontSize: 12, color: 'var(--textMuted)', cursor: 'pointer', fontFamily: 'inherit' }}>Abbrechen</button>
-                <button disabled={!newReq.room || !newReq.request_details} onClick={async () => {
-                  await supabase.from('service_requests').insert({ category: newReq.category, room: newReq.room, guest_name: newReq.guest_name, request_details: newReq.request_details, status: 'pending', ...(newReq.order_total ? { order_total: parseFloat(newReq.order_total) } : {}) })
-                  setShowNewRequest(false); setNewReq({ category: 'room_service', room: '', guest_name: '', request_details: '', order_total: '' }); setGuestSearch(''); refresh()
-                }} style={{ flex: 1, padding: 12, background: newReq.room && newReq.request_details ? selColor : 'var(--bgCard)', border: 'none', borderRadius: 10, fontSize: 12, fontWeight: 600, color: newReq.room && newReq.request_details ? '#fff' : 'var(--textDim)', cursor: newReq.room && newReq.request_details ? 'pointer' : 'default', fontFamily: 'inherit' }}>Anfrage erstellen</button>
+                <button onClick={() => { setShowNewRequest(false); setOrderItems([]); setMenuSearch('') }} style={{ flex: 1, padding: 12, background: 'var(--bgCard)', border: '1px solid var(--borderLight)', borderRadius: 10, fontSize: 12, color: 'var(--textMuted)', cursor: 'pointer', fontFamily: 'inherit' }}>Abbrechen</button>
+                <button disabled={!newReq.room || (newReq.category === 'room_service' ? orderItems.length === 0 : !newReq.request_details)} onClick={async () => {
+                  let details = newReq.request_details
+                  let total = newReq.order_total ? parseFloat(newReq.order_total) : null
+                  if (newReq.category === 'room_service' && orderItems.length > 0) {
+                    details = orderItems.map(i => `${i.qty}x ${i.name} — ${(i.price * i.qty).toFixed(2)}€${i.note ? ` (${i.note})` : ''}`).join(', ')
+                    total = orderItems.reduce((s, i) => s + i.price * i.qty, 0) + ROOM_SERVICE_FEE
+                  }
+                  await supabase.from('service_requests').insert({ category: newReq.category, room: newReq.room, guest_name: newReq.guest_name, request_details: details, status: 'pending', ...(total ? { order_total: Math.round(total * 100) / 100 } : {}), ...(newReq.booking_id ? { booking_id: newReq.booking_id } : {}) })
+                  setShowNewRequest(false); setNewReq({ category: 'room_service', room: '', guest_name: '', request_details: '', order_total: '', booking_id: '' }); setGuestSearch(''); setOrderItems([]); setMenuSearch(''); refresh()
+                }} style={{ flex: 1, padding: 12, background: newReq.room ? selColor : 'var(--bgCard)', border: 'none', borderRadius: 10, fontSize: 12, fontWeight: 600, color: newReq.room ? '#fff' : 'var(--textDim)', cursor: newReq.room ? 'pointer' : 'default', fontFamily: 'inherit' }}>Anfrage erstellen</button>
               </div>
             </div>
           </div>
