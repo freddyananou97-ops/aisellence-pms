@@ -207,7 +207,7 @@ export default function Meldeschein() {
           {forms.length === 0 ? (
             <div style={{ padding: 32, textAlign: 'center', color: 'var(--textDim)', fontSize: 13 }}>Noch keine Meldescheine vorhanden</div>
           ) : forms.map(f => (
-            <button key={f.id} onClick={() => setSelectedForm(f)} style={{ display: 'grid', gridTemplateColumns: '120px 1fr 80px 100px 80px', padding: '12px 16px', borderBottom: '1px solid var(--border)', gap: 8, cursor: 'pointer', alignItems: 'center', width: '100%', textAlign: 'left', background: 'transparent', border: 'none', borderBottom: '1px solid var(--border)', fontFamily: 'inherit' }}>
+            <button key={f.id} onClick={() => setSelectedForm(f)} style={{ display: 'grid', gridTemplateColumns: '120px 1fr 80px 100px 80px', padding: '12px 16px', gap: 8, cursor: 'pointer', alignItems: 'center', width: '100%', textAlign: 'left', background: 'transparent', border: 'none', borderBottom: '1px solid var(--border)', fontFamily: 'inherit' }}>
               <span style={{ fontSize: 12, color: 'var(--textMuted)' }}>{f.created_at ? new Date(f.created_at).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: '2-digit' }) : '—'}</span>
               <span style={{ fontSize: 12, color: 'var(--textSec)' }}>{f.guest_name || '—'}</span>
               <span style={{ fontSize: 12, color: 'var(--textMuted)' }}>{f.room || '—'}</span>
