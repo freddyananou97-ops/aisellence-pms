@@ -27,6 +27,7 @@ import Fruehstueck from './pages/Fruehstueck'
 import Settings from './pages/Settings'
 import Meldeschein from './pages/Meldeschein'
 import Protokoll from './pages/Protokoll'
+import RateManagement from './pages/RateManagement'
 
 const SESSION_KEY = 'aisellence-session'
 const SESSION_MAX_AGE = 12 * 60 * 60 * 1000 // 12 hours
@@ -116,6 +117,7 @@ function AppContent() {
       case '/settings': return <Settings />
       case '/meldeschein': return <Meldeschein />
       case '/protokoll': return <Protokoll />
+      case '/preise': return <RateManagement />
       default: return <Dashboard user={user} />
     }
   }

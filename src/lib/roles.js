@@ -1,12 +1,12 @@
 export const ROLES = {
   admin: {
     label: 'Administrator',
-    modules: ['/', '/buchungen', '/kalender', '/gaeste', '/rechnungen', '/analytics', '/schichtbuch', '/zimmer', '/housekeeping', '/kitchen', '/restaurant', '/fruehstueck', '/spa', '/wartung', '/meldeschein', '/feedback', '/protokoll', '/settings'],
+    modules: ['/', '/buchungen', '/kalender', '/gaeste', '/rechnungen', '/analytics', '/schichtbuch', '/zimmer', '/housekeeping', '/kitchen', '/restaurant', '/fruehstueck', '/spa', '/wartung', '/meldeschein', '/feedback', '/preise', '/protokoll', '/settings'],
     defaultRoute: '/',
   },
   rezeption: {
     label: 'Rezeption',
-    modules: ['/', '/buchungen', '/kalender', '/gaeste', '/zimmer', '/housekeeping', '/kitchen', '/restaurant', '/fruehstueck', '/spa', '/wartung', '/meldeschein', '/schichtbuch', '/feedback'],
+    modules: ['/', '/buchungen', '/kalender', '/gaeste', '/zimmer', '/housekeeping', '/kitchen', '/restaurant', '/fruehstueck', '/spa', '/wartung', '/meldeschein', '/schichtbuch', '/feedback', '/preise'],
     defaultRoute: '/',
   },
   housekeeping: {
