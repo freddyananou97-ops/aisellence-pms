@@ -106,7 +106,7 @@ export default async function handler(req, res) {
         continue
       }
 
-      const row = { event_name: ev.name, start_date: ev.date, event_type: ev.type || 'sonstiges', impact_level: ev.impact || 'medium', description: ev.description || null }
+      const row = { event_name: ev.name, start_date: ev.date, end_date: ev.date, event_type: ev.type || 'sonstiges', impact_level: ev.impact || 'medium', description: ev.description || null }
       const { error: insErr } = await supabase.from('events_calendar').insert(row)
 
       if (insErr) {
