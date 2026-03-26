@@ -216,12 +216,7 @@ export default function Dashboard({ user }) {
                   {req.category === 'late_checkout' && req.status === 'pending' && <>
                     <button style={s.confirmSmBtn} onClick={async () => {
                       await supabase.from('service_requests').update({ status: 'accepted', response_message: 'approved', resolved_at: new Date().toISOString() }).eq('id', req.id)
-                      // Create charge based on requested time
-                      const hour = parseInt(req.request_details?.match(/(\d{1,2}):/)?.[1] || '14')
-                      let charge = 30
-                      if (hour > 18) charge = parseFloat(req.order_total || 129)
-                      else if (hour > 14) charge = parseFloat(req.order_total || 129) / 2
-                      await supabase.from('service_requests').insert({ category: 'late_checkout', room: req.room, guest_name: req.guest_name, request_details: `Late Checkout Gebühr (bis ${hour}:00)`, status: 'delivered', order_total: Math.round(charge), resolved_at: new Date().toISOString() })
+                      await supabase.from('service_requests').insert({ category: 'late_checkout', room: req.room, guest_name: req.guest_name, request_details: 'Late Checkout Gebühr (bis 14:00)', status: 'delivered', order_total: 30, resolved_at: new Date().toISOString() })
                     }}>Genehmigen</button>
                     <button style={{ ...s.acceptBtn, color: '#ef4444', borderColor: 'rgba(239,68,68,0.2)' }} onClick={async () => {
                       await supabase.from('service_requests').update({ status: 'resolved', response_message: 'declined', resolved_at: new Date().toISOString() }).eq('id', req.id)
