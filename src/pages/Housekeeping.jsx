@@ -29,19 +29,21 @@ export default function Housekeeping() {
   const [minibarCart, setMinibarCart] = useState({})
   const [confirm, setConfirm] = useState(null)
   const [saving, setSaving] = useState(false)
+  const [lateCheckouts, setLateCheckouts] = useState([])
   const [signatureReq, setSignatureReq] = useState(null)
 
   const todayStr = new Date().toISOString().split('T')[0]
 
   const load = useCallback(async () => {
     const threeDaysAgo = new Date(); threeDaysAgo.setDate(threeDaysAgo.getDate() - 3)
-    const [h, r, b, p, req, hist] = await Promise.all([
+    const [h, r, b, p, req, hist, lc] = await Promise.all([
       supabase.from('housekeeping').select('*').order('room_number', { ascending: true }),
       supabase.from('rooms').select('*').order('room_number', { ascending: true }),
       supabase.from('bookings').select('*'),
       supabase.from('minibar_products').select('*').eq('active', true).order('category'),
       supabase.from('service_requests').select('*').in('category', HK_CATEGORIES).in('status', ['pending', 'accepted']).order('timestamp', { ascending: false }),
       supabase.from('service_requests').select('*').in('category', HK_CATEGORIES).in('status', ['resolved', 'delivered']).gte('timestamp', threeDaysAgo.toISOString()).order('timestamp', { ascending: false }),
+      supabase.from('service_requests').select('*').eq('category', 'late_checkout').eq('status', 'accepted').gte('timestamp', new Date().toISOString().split('T')[0]),
     ])
     setItems(h.data || [])
     setRooms(r.data || [])
@@ -49,6 +51,7 @@ export default function Housekeeping() {
     setProducts(p.data || [])
     setRequests(req.data || [])
     setRequestHistory(hist.data || [])
+    setLateCheckouts(lc.data || [])
     setLoading(false)
   }, [])
 
@@ -147,7 +150,13 @@ export default function Housekeeping() {
     const room = rooms.find(r => String(r.room_number) === String(item.room_number))
     return room ? room.floor === floor : String(item.room_number).startsWith(String(floor))
   })
-  const filtered = filter === 'alle' ? floorItems : floorItems.filter(i => i.status === filter)
+  const filteredUnsorted = filter === 'alle' ? floorItems : floorItems.filter(i => i.status === filter)
+  // Sort: late checkout rooms at the end (they become free later)
+  const filtered = filteredUnsorted.sort((a, b) => {
+    const aLate = lateCheckouts.some(lc => String(lc.room) === String(a.room_number)) ? 1 : 0
+    const bLate = lateCheckouts.some(lc => String(lc.room) === String(b.room_number)) ? 1 : 0
+    return aLate - bLate
+  })
   const counts = STATUSES.reduce((a, st) => { a[st.id] = floorItems.filter(i => i.status === st.id).length; return a }, {})
 
   // Service Request handlers
@@ -284,6 +293,7 @@ export default function Housekeeping() {
           const bookingNotes = getBookingNotes(item.room_number)
           const roomData = rooms.find(r => String(r.room_number) === String(item.room_number))
           const isBlocked = roomData?.blocked_reason
+          const lateC = lateCheckouts.find(lc => String(lc.room) === String(item.room_number))
           return (
             <div key={item.id} style={{
               background: 'var(--bgCard)', border: isBlocked ? '1px solid rgba(239,68,68,0.3)' : '1px solid var(--borderLight)', borderRadius: 12, overflow: 'hidden',
@@ -303,7 +313,8 @@ export default function Housekeeping() {
                   <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
                     <span style={{ fontSize: 10, padding: '3px 8px', borderRadius: 6, background: st.bg, color: st.color, fontWeight: 500 }}>{st.label}</span>
                     {isBlocked && <span style={{ fontSize: 9, padding: '2px 6px', borderRadius: 4, background: 'rgba(239,68,68,0.1)', color: '#ef4444', fontWeight: 500 }}>Gesperrt</span>}
-                    {checkout && !checkedOut && <span style={{ fontSize: 9, padding: '2px 6px', borderRadius: 4, background: 'rgba(245,158,11,0.1)', color: '#f59e0b', fontWeight: 500 }}>Abreise heute</span>}
+                    {lateC && <span style={{ fontSize: 9, padding: '2px 6px', borderRadius: 4, background: 'rgba(139,92,246,0.1)', color: '#8b5cf6', fontWeight: 500 }} title={lateC.request_details}>🕐 Late C/O</span>}
+                    {checkout && !checkedOut && !lateC && <span style={{ fontSize: 9, padding: '2px 6px', borderRadius: 4, background: 'rgba(245,158,11,0.1)', color: '#f59e0b', fontWeight: 500 }}>Abreise heute</span>}
                     {checkedOut && <span style={{ fontSize: 9, padding: '2px 6px', borderRadius: 4, background: 'rgba(239,68,68,0.1)', color: '#ef4444', fontWeight: 500 }}>Ausgecheckt — vorbereiten!</span>}
                   </div>
                 </div>

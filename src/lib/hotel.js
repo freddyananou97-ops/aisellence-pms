@@ -18,6 +18,12 @@ const DEFAULTS = {
 
 // Mutable hotel object — updated on load
 export const HOTEL = { ...DEFAULTS }
+export const LATE_CHECKOUT = {
+  until14: 30,         // Bis 14:00 = 30€ pauschal
+  until18: 'half',     // Bis 18:00 = halber Zimmerpreis
+  after18: 'full',     // Nach 18:00 = voller Zimmerpreis
+}
+
 export let HOTEL_ADDRESS = `${HOTEL.street} · ${HOTEL.zip} ${HOTEL.city}`
 export let HOTEL_FULL = `${HOTEL.name} · ${HOTEL_ADDRESS}`
 

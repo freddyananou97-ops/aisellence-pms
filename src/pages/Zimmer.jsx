@@ -15,18 +15,21 @@ export default function Zimmer() {
   const [noteText, setNoteText] = useState('')
   const [savingNote, setSavingNote] = useState(false)
   const [checkoutBooking, setCheckoutBooking] = useState(null)
+  const [lateCheckouts, setLateCheckouts] = useState([])
 
   const todayStr = new Date().toISOString().split('T')[0]
 
   const load = useCallback(async () => {
-    const [r, b, h] = await Promise.all([
+    const [r, b, h, lc] = await Promise.all([
       supabase.from('rooms').select('*').order('room_number', { ascending: true }),
       supabase.from('bookings').select('*').in('status', ['checked_in', 'confirmed', 'reserved']),
       supabase.from('housekeeping').select('*'),
+      supabase.from('service_requests').select('*').eq('category', 'late_checkout').eq('status', 'accepted').gte('timestamp', new Date().toISOString().split('T')[0]),
     ])
     setRooms(r.data || [])
     setBookings(b.data || [])
     setHousekeeping(h.data || [])
+    setLateCheckouts(lc.data || [])
     setLoading(false)
   }, [])
 
@@ -41,6 +44,7 @@ export default function Zimmer() {
   const getHK = (rn) => housekeeping.find(h => String(h.room_number) === String(rn))
   const nights = (ci, co) => Math.max(1, Math.round((new Date(co) - new Date(ci)) / 86400000))
   const isCheckoutToday = (rn) => bookings.some(b => String(b.room) === String(rn) && b.check_out === todayStr)
+  const getLateCheckout = (rn) => lateCheckouts.find(lc => String(lc.room) === String(rn))
 
   const HK_COLORS = { dirty: '#ef4444', cleaning: '#f59e0b', clean: '#10b981', blocked: '#6b7280' }
   const HK_LABELS = { dirty: 'Schmutzig', cleaning: 'Reinigung', clean: 'Sauber', blocked: 'Gesperrt' }
@@ -112,6 +116,7 @@ export default function Zimmer() {
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 10 }}>
         {floorRooms.map(room => {
           const booking = getBooking(room.room_number)
+          const lateC = getLateCheckout(room.room_number)
           const hk = getHK(room.room_number)
           const hkColor = hk ? HK_COLORS[hk.status] || '#333' : '#333'
           const checkout = isCheckoutToday(room.room_number)
@@ -133,6 +138,7 @@ export default function Zimmer() {
                     <span style={{ fontSize: 10, padding: '3px 8px', borderRadius: 6, background: isBlocked ? 'rgba(239,68,68,0.08)' : booking ? 'rgba(16,185,129,0.08)' : 'rgba(107,114,128,0.08)', color: isBlocked ? '#ef4444' : booking ? '#10b981' : '#6b7280', fontWeight: 500 }}>{isBlocked ? 'Gesperrt' : booking ? 'Belegt' : 'Frei'}</span>
                     {hk && <span style={{ fontSize: 8, padding: '2px 6px', borderRadius: 4, background: `${hkColor}10`, color: hkColor }}>{HK_LABELS[hk.status]}</span>}
                     {checkout && <span style={{ fontSize: 8, padding: '2px 6px', borderRadius: 4, background: 'rgba(245,158,11,0.1)', color: '#f59e0b' }}>Abreise heute</span>}
+                    {lateC && <span style={{ fontSize: 8, padding: '2px 6px', borderRadius: 4, background: 'rgba(139,92,246,0.1)', color: '#8b5cf6' }} title={`Late Checkout: ${lateC.request_details}`}>🕐 Late C/O</span>}
                   </div>
                 </div>
 

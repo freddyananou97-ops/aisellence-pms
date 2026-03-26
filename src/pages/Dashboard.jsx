@@ -128,12 +128,12 @@ export default function Dashboard({ user }) {
   }
 
   const getRequestLabel = (type) => {
-    const map = { taxi: 'Taxi', complaint: 'Beschwerde', room_service: 'Room Service', pillow: 'Kissen', towels: 'Handtücher', housekeeping: 'Reinigung', wake_up: 'Weckruf', luggage: 'Gepäck', maintenance: 'Wartung' }
+    const map = { taxi: 'Taxi', complaint: 'Beschwerde', room_service: 'Room Service', pillow: 'Kissen', towels: 'Handtücher', housekeeping: 'Reinigung', wake_up: 'Weckruf', luggage: 'Gepäck', maintenance: 'Wartung', late_checkout: 'Late Checkout' }
     return map[type] || type
   }
 
   const getRequestColor = (type) => {
-    const map = { taxi: '#3b82f6', complaint: '#ef4444', room_service: '#f59e0b', pillow: '#8b5cf6', towels: '#8b5cf6', housekeeping: '#10b981', maintenance: '#f59e0b' }
+    const map = { taxi: '#3b82f6', complaint: '#ef4444', room_service: '#f59e0b', pillow: '#8b5cf6', towels: '#8b5cf6', housekeeping: '#10b981', maintenance: '#f59e0b', late_checkout: '#8b5cf6' }
     return map[type] || '#6b7280'
   }
 
@@ -213,14 +213,31 @@ export default function Dashboard({ user }) {
                       <button style={s.confirmSmBtn} onClick={() => handleTaxiConfirm(req)}>Bestätigen</button>
                     </>
                   )}
-                  {req.category !== 'taxi' && req.status === 'pending' && (
+                  {req.category === 'late_checkout' && req.status === 'pending' && <>
+                    <button style={s.confirmSmBtn} onClick={async () => {
+                      await supabase.from('service_requests').update({ status: 'accepted', response_message: 'approved', resolved_at: new Date().toISOString() }).eq('id', req.id)
+                      // Create charge based on requested time
+                      const hour = parseInt(req.request_details?.match(/(\d{1,2}):/)?.[1] || '14')
+                      let charge = 30
+                      if (hour > 18) charge = parseFloat(req.order_total || 129)
+                      else if (hour > 14) charge = parseFloat(req.order_total || 129) / 2
+                      await supabase.from('service_requests').insert({ category: 'late_checkout', room: req.room, guest_name: req.guest_name, request_details: `Late Checkout Gebühr (bis ${hour}:00)`, status: 'delivered', order_total: Math.round(charge), resolved_at: new Date().toISOString() })
+                    }}>Genehmigen</button>
+                    <button style={{ ...s.acceptBtn, color: '#ef4444', borderColor: 'rgba(239,68,68,0.2)' }} onClick={async () => {
+                      await supabase.from('service_requests').update({ status: 'resolved', response_message: 'declined', resolved_at: new Date().toISOString() }).eq('id', req.id)
+                    }}>Ablehnen</button>
+                  </>}
+                  {req.category !== 'taxi' && req.category !== 'late_checkout' && req.status === 'pending' && (
                     <button style={s.acceptBtn} onClick={() => handleAccept(req)}>Annehmen</button>
                   )}
-                  {req.status === 'accepted' && (
+                  {req.status === 'accepted' && req.category !== 'late_checkout' && (
                     <button style={s.resolveBtn} onClick={() => handleResolve(req)}>Erledigt</button>
                   )}
                   {req.category === 'complaint' && req.status === 'pending' && (
                     <button style={s.resolveBtn} onClick={() => handleResolve(req)}>Erledigt</button>
+                  )}
+                  {req.category === 'late_checkout' && req.status === 'accepted' && (
+                    <span style={{ fontSize: 10, color: '#10b981', fontWeight: 500 }}>✓ Genehmigt</span>
                   )}
                 </div>
               </div>
