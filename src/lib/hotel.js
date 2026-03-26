@@ -23,7 +23,7 @@ export const LATE_CHECKOUT = {
 }
 
 export const MAKE_WEBHOOKS = {
-  late_checkout_response: 'https://hook.eu2.make.com/DEIN_WEBHOOK_HIER',
+  late_checkout_response: 'https://hook.eu2.make.com/9eapqkwjvu3unsfw8mouugp9aieh5u1p',
 }
 
 export let HOTEL_ADDRESS = `${HOTEL.street} · ${HOTEL.zip} ${HOTEL.city}`
