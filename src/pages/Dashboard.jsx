@@ -91,10 +91,23 @@ export default function Dashboard({ user }) {
   const [bookingDetail, setBookingDetail] = useState(null)
   const [showNewRequest, setShowNewRequest] = useState(false)
 
-  // Lock body scroll when modal is open
+  // Lock all scroll when modal is open (body + main content wrapper)
   useEffect(() => {
-    if (showNewRequest) { document.body.style.overflow = 'hidden' } else { document.body.style.overflow = '' }
-    return () => { document.body.style.overflow = '' }
+    const mainEl = document.querySelector('.main-content')
+    if (showNewRequest) {
+      document.body.style.overflow = 'hidden'
+      document.documentElement.style.overflow = 'hidden'
+      if (mainEl) mainEl.style.overflow = 'hidden'
+    } else {
+      document.body.style.overflow = ''
+      document.documentElement.style.overflow = ''
+      if (mainEl) mainEl.style.overflow = ''
+    }
+    return () => {
+      document.body.style.overflow = ''
+      document.documentElement.style.overflow = ''
+      if (mainEl) mainEl.style.overflow = ''
+    }
   }, [showNewRequest])
   const [newReq, setNewReq] = useState({ category: 'room_service', room: '', guest_name: '', request_details: '', order_total: '', booking_id: '' })
   const [guestSearch, setGuestSearch] = useState('')
@@ -508,7 +521,7 @@ export default function Dashboard({ user }) {
         const guestMatches = q ? checkedIn.filter(b => b.guest_name?.toLowerCase().includes(q) || String(b.room).includes(q)) : checkedIn
         const selColor = REQ_CATS.find(([k]) => k === newReq.category)?.[2] || '#3b82f6'
         return (
-          <div style={{ position: 'fixed', inset: 0, background: 'var(--overlayBg, rgba(0,0,0,0.7))', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100 }} onClick={() => setShowNewRequest(false)}>
+          <div style={{ position: 'fixed', inset: 0, background: 'var(--overlayBg, rgba(0,0,0,0.7))', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, overflowY: 'auto' }} onClick={() => setShowNewRequest(false)}>
             <div style={{ background: 'var(--modalBg, #111)', border: '1px solid var(--modalBorder, #222)', borderRadius: 16, padding: '24px 28px', width: '100%', maxWidth: newReq.category === 'room_service' ? 720 : 460, transition: 'max-width 0.3s ease', maxHeight: '90vh', overflow: 'hidden', display: 'flex', flexDirection: 'column' }} onClick={e => e.stopPropagation()}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
                 <h3 style={{ fontSize: 16, fontWeight: 500, color: 'var(--text)', margin: 0 }}>Neue Anfrage erfassen</h3>
