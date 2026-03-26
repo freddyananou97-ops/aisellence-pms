@@ -11,9 +11,20 @@ export default async function handler(req, res) {
   if (req.method === 'OPTIONS') return res.status(200).end()
   if (req.method !== 'POST' && req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' })
 
+  // Debug mode: show config status
+  if (req.query?.debug === '1') {
+    return res.status(200).json({
+      apify_token_set: !!APIFY_TOKEN,
+      apify_token_length: APIFY_TOKEN?.length || 0,
+      supabase_key_set: !!SUPABASE_KEY,
+      supabase_url: SUPABASE_URL,
+      env_keys: Object.keys(process.env).filter(k => k.includes('APIFY') || k.includes('SUPABASE')),
+    })
+  }
+
   // Check required env vars
-  if (!APIFY_TOKEN) return res.status(500).json({ error: 'APIFY_TOKEN not configured. Add it to Vercel Environment Variables.' })
-  if (!SUPABASE_KEY) return res.status(500).json({ error: 'SUPABASE_ANON_KEY not configured.' })
+  if (!APIFY_TOKEN) return res.status(500).json({ error: 'APIFY_TOKEN not configured. Add it to Vercel Environment Variables.', hint: 'Go to Vercel → Settings → Environment Variables → Add APIFY_TOKEN' })
+  if (!SUPABASE_KEY) return res.status(500).json({ error: 'SUPABASE_ANON_KEY not configured.', hint: 'Add VITE_SUPABASE_ANON_KEY or SUPABASE_ANON_KEY to Vercel env vars' })
 
   const supabase = createClient(SUPABASE_URL, SUPABASE_KEY)
 
