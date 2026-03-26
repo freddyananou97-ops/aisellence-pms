@@ -14,7 +14,7 @@ export default function Dashboard({ user }) {
   const { data, loading, lastUpdate } = useDashboardData({
     bookings: fetchBookings, logs: fetchShiftLogs, complaints: fetchComplaints,
     maintenance: fetchMaintenance, requests: fetchAllOpenRequests,
-    revenue: fetchRevenueInsights, events: () => fetchEvents(7), housekeeping: fetchHousekeeping,
+    revenue: fetchRevenueInsights, events: () => fetchEvents(14), housekeeping: fetchHousekeeping,
     rooms: async () => { const { data } = await supabase.from('rooms').select('*'); return data || [] },
   })
   const [taxiMinutes, setTaxiMinutes] = useState({})
@@ -325,8 +325,8 @@ export default function Dashboard({ user }) {
 
       {/* Row 4: Events + Weather */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 16 }}>
-        <Card title="Events diese Woche" extra={`${dEvents.length}`}>
-          {dEvents.length === 0 && <div style={{ padding: 16, textAlign: 'center', color: 'var(--textDim)', fontSize: 12 }}>Keine Events diese Woche</div>}
+        <Card title="Events nächste 14 Tage" extra={`${dEvents.length}`}>
+          {dEvents.length === 0 && <div style={{ padding: 16, textAlign: 'center', color: 'var(--textDim)', fontSize: 12 }}>Keine Events in den nächsten 14 Tagen</div>}
           <div style={{ maxHeight: 350, overflowY: 'auto' }}>
           {dEvents.map((ev, i) => {
             const impactColor = ev.impact_level === 'high' ? '#ef4444' : ev.impact_level === 'medium' ? '#3b82f6' : '#555'
