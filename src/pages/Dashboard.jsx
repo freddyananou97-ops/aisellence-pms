@@ -129,7 +129,7 @@ export default function Dashboard({ user }) {
   }
 
   const getRequestLabel = (type) => {
-    const map = { taxi: '🚕 Taxi', complaint: '⚠️ Beschwerde', room_service: '🍽️ Room Service', pillow: '🛏️ Kissen', towels: '🧹 Handtücher', housekeeping: '🧹 Reinigung', wake_up: '⏰ Weckruf', luggage: '🧳 Gepäck', maintenance: '🔧 Wartung', late_checkout: '🕐 Late Checkout' }
+    const map = { taxi: 'Taxi', complaint: 'Beschwerde', room_service: 'Room Service', pillow: 'Kissen', towels: 'Handtücher', housekeeping: 'Reinigung', wake_up: 'Weckruf', luggage: 'Gepäck', maintenance: 'Wartung', late_checkout: 'Late Checkout' }
     return map[type] || type
   }
 
@@ -196,7 +196,10 @@ export default function Dashboard({ user }) {
               <div key={req.id} style={{ ...s.reqRow, borderLeft: `3px solid ${overdue ? '#ef4444' : color}`, background: overdue ? 'rgba(239,68,68,0.03)' : 'transparent' }}>
                 <div style={{ flex: 1 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-                    <span style={{ fontSize: 10, padding: '2px 7px', borderRadius: 4, background: `${color}15`, color, fontWeight: 500 }}>{getRequestLabel(req.category)}</span>
+                    <span style={{ fontSize: 10, padding: '2px 7px', borderRadius: 4, background: `${color}15`, color, fontWeight: 500, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                      <RequestIcon type={req.category} color={color} />
+                      {getRequestLabel(req.category)}
+                    </span>
                     <span style={{ fontSize: 12, color: 'var(--textSec)' }}>Zi. {req.room}</span>
                     <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{req.guest_name}</span>
                     {overdue && <span style={{ fontSize: 9, color: '#ef4444', fontWeight: 500 }}>ÜBERFÄLLIG</span>}
@@ -459,6 +462,21 @@ export default function Dashboard({ user }) {
       )}
     </div>
   )
+}
+
+function RequestIcon({ type, color, size = 12 }) {
+  const p = { width: size, height: size, viewBox: '0 0 24 24', fill: 'none', stroke: color, strokeWidth: '2', strokeLinecap: 'round', strokeLinejoin: 'round' }
+  switch (type) {
+    case 'room_service': return <svg {...p}><path d="M3 11h18M5 11V6a7 7 0 0114 0v5"/><line x1="12" y1="4" x2="12" y2="4.01"/></svg>
+    case 'housekeeping': case 'pillow': case 'towels': case 'cleaning': return <svg {...p}><path d="M3 21h18M4 21V10l8-6 8 6v11"/><rect x="9" y="13" width="6" height="8"/></svg>
+    case 'maintenance': return <svg {...p}><path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z"/></svg>
+    case 'taxi': return <svg {...p}><path d="M5 17h14M6 17l1-5h10l1 5"/><path d="M8 12l1-4h6l1 4"/><circle cx="7.5" cy="17" r="1.5"/><circle cx="16.5" cy="17" r="1.5"/></svg>
+    case 'complaint': return <svg {...p}><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+    case 'late_checkout': return <svg {...p}><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+    case 'luggage': return <svg {...p}><rect x="6" y="7" width="12" height="14" rx="2"/><path d="M9 7V5a3 3 0 016 0v2"/><line x1="6" y1="12" x2="18" y2="12"/></svg>
+    case 'wake_up': return <svg {...p}><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2 2"/><path d="M5 3l2 2M19 3l-2 2"/></svg>
+    default: return <svg {...p}><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></svg>
+  }
 }
 
 function DashboardClock({ style }) {
