@@ -327,7 +327,8 @@ export default function Dashboard({ user }) {
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 16 }}>
         <Card title="Events diese Woche" extra={`${dEvents.length}`}>
           {dEvents.length === 0 && <div style={{ padding: 16, textAlign: 'center', color: 'var(--textDim)', fontSize: 12 }}>Keine Events diese Woche</div>}
-          {dEvents.slice(0, 6).map((ev, i) => {
+          <div style={{ maxHeight: 350, overflowY: 'auto' }}>
+          {dEvents.map((ev, i) => {
             const impactColor = ev.impact_level === 'high' ? '#ef4444' : ev.impact_level === 'medium' ? '#3b82f6' : '#555'
             const isMultiDay = ev.end_date && ev.end_date !== ev.start_date
             return (
@@ -350,6 +351,7 @@ export default function Dashboard({ user }) {
               </Row>
             )
           })}
+          </div>
         </Card>
         <Card title="Wetter Ingolstadt" extra={weather ? '7 Tage' : '...'}>
           {weather && weather.current ? (() => {
