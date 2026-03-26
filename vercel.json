@@ -4,6 +4,7 @@
     { "source": "/(.*)", "destination": "/" }
   ],
   "crons": [
-    { "path": "/api/scrape-competitors", "schedule": "0 6 * * *" }
+    { "path": "/api/scrape-competitors", "schedule": "0 6 * * *" },
+    { "path": "/api/update-events", "schedule": "0 6 * * 1" }
   ]
 }
