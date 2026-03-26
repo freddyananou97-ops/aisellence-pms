@@ -22,6 +22,10 @@ export const LATE_CHECKOUT = {
   price: 30,  // Late Checkout bis 14:00 = 30€
 }
 
+export const MAKE_WEBHOOKS = {
+  late_checkout_response: 'https://hook.eu2.make.com/DEIN_WEBHOOK_HIER',
+}
+
 export let HOTEL_ADDRESS = `${HOTEL.street} · ${HOTEL.zip} ${HOTEL.city}`
 export let HOTEL_FULL = `${HOTEL.name} · ${HOTEL_ADDRESS}`
 

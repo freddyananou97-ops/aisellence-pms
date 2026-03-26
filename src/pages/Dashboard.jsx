@@ -5,6 +5,7 @@ import { useNotifications } from '../hooks/useNotifications'
 import { useTier } from '../lib/tier.jsx'
 import LoadingSkeleton from '../components/LoadingSkeleton'
 import { openPrintPage, buildTable } from '../lib/print'
+import { MAKE_WEBHOOKS } from '../lib/hotel'
 import ConfirmDialog from '../components/ConfirmDialog'
 
 export default function Dashboard({ user }) {
@@ -217,9 +218,14 @@ export default function Dashboard({ user }) {
                     <button style={s.confirmSmBtn} onClick={async () => {
                       await supabase.from('service_requests').update({ status: 'accepted', response_message: 'approved', resolved_at: new Date().toISOString() }).eq('id', req.id)
                       await supabase.from('service_requests').insert({ category: 'late_checkout', room: req.room, guest_name: req.guest_name, request_details: 'Late Checkout Gebühr (bis 14:00)', status: 'delivered', order_total: 30, resolved_at: new Date().toISOString() })
+                      // Notify guest via Make.com webhook
+                      const { data: bk } = await supabase.from('bookings').select('phone, language').eq('room', req.room).eq('status', 'checked_in').maybeSingle()
+                      try { await fetch(MAKE_WEBHOOKS.late_checkout_response, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'approved', room: req.room, guest_name: req.guest_name, phone_number: bk?.phone || '', language: bk?.language || 'german', price: 30 }) }) } catch {}
                     }}>Genehmigen</button>
                     <button style={{ ...s.acceptBtn, color: '#ef4444', borderColor: 'rgba(239,68,68,0.2)' }} onClick={async () => {
                       await supabase.from('service_requests').update({ status: 'resolved', response_message: 'declined', resolved_at: new Date().toISOString() }).eq('id', req.id)
+                      const { data: bk } = await supabase.from('bookings').select('phone, language').eq('room', req.room).eq('status', 'checked_in').maybeSingle()
+                      try { await fetch(MAKE_WEBHOOKS.late_checkout_response, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'declined', room: req.room, guest_name: req.guest_name, phone_number: bk?.phone || '', language: bk?.language || 'german' }) }) } catch {}
                     }}>Ablehnen</button>
                   </>}
                   {req.category !== 'taxi' && req.category !== 'late_checkout' && req.status === 'pending' && (
