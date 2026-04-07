@@ -121,7 +121,6 @@ function ParticleWave({ exiting, light }) {
 export default function Login({ onLogin, transitioning }) {
   const [name, setName] = useState('')
   const [pin, setPin] = useState('')
-  const [tier, setTier] = useState('pms')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const [showPin, setShowPin] = useState(false)
@@ -131,7 +130,7 @@ export default function Login({ onLogin, transitioning }) {
     setLoading(true); setError('')
     const employee = await loginWithHash(name, pin)
     if (employee) {
-      onLogin({ ...employee, hotel: HOTEL.name, tier })
+      onLogin({ ...employee, hotel: HOTEL.name, tier: 'pms' })
     } else {
       setError('Name oder PIN falsch')
     }
@@ -207,28 +206,7 @@ export default function Login({ onLogin, transitioning }) {
 
           <div style={{ marginBottom: 32 }}>
             <h2 style={{ fontSize: 20, fontWeight: 500, color: c.text, margin: '0 0 6px' }}>Anmelden</h2>
-            <p style={{ fontSize: 12, color: c.textMuted, margin: 0 }}>Bitte wählen Sie Ihr Produkt und melden Sie sich an.</p>
-          </div>
-
-          {/* Product Tier */}
-          <label style={{ display: 'block', fontSize: 10, fontWeight: 500, color: c.label, marginBottom: 6, textTransform: 'uppercase', letterSpacing: 1 }}>Produkt</label>
-          <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
-            <button onClick={() => setTier('pms')} style={{
-              flex: 1, padding: '14px 10px', borderRadius: 10, cursor: 'pointer', fontFamily: 'inherit', textAlign: 'center', transition: '0.15s',
-              border: tier === 'pms' ? '1px solid #10b981' : `1px solid ${c.tierBorder}`,
-              background: tier === 'pms' ? 'rgba(16,185,129,0.06)' : c.tierBg,
-            }}>
-              <div style={{ fontSize: 12, color: tier === 'pms' ? '#10b981' : c.tierText, fontWeight: 600 }}>PMS + Marco</div>
-              <div style={{ fontSize: 10, color: c.textDim, marginTop: 3 }}>Alle Module</div>
-            </button>
-            <button onClick={() => setTier('concierge')} style={{
-              flex: 1, padding: '14px 10px', borderRadius: 10, cursor: 'pointer', fontFamily: 'inherit', textAlign: 'center', transition: '0.15s',
-              border: tier === 'concierge' ? '1px solid #8b5cf6' : `1px solid ${c.tierBorder}`,
-              background: tier === 'concierge' ? 'rgba(139,92,246,0.06)' : c.tierBg,
-            }}>
-              <div style={{ fontSize: 12, color: tier === 'concierge' ? '#8b5cf6' : c.tierText, fontWeight: 600 }}>Marco Concierge</div>
-              <div style={{ fontSize: 10, color: c.textDim, marginTop: 3 }}>Service Requests</div>
-            </button>
+            <p style={{ fontSize: 12, color: c.textMuted, margin: 0 }}>Melden Sie sich an, um Ihren Arbeitsbereich zu öffnen.</p>
           </div>
 
           <label style={{ display: 'block', fontSize: 10, fontWeight: 500, color: c.label, marginBottom: 6, textTransform: 'uppercase', letterSpacing: 1 }}>Name</label>
@@ -253,7 +231,7 @@ export default function Login({ onLogin, transitioning }) {
           <button style={{
             width: '100%', padding: 14, border: 'none', borderRadius: 10, fontSize: 14, fontWeight: 600,
             cursor: 'pointer', opacity: loading ? 0.6 : 1, transition: '0.15s',
-            background: tier === 'pms' ? '#10b981' : '#8b5cf6', color: '#fff',
+            background: '#10b981', color: '#fff',
           }} onClick={handleLogin} disabled={loading}>
             {loading ? 'Einloggen...' : 'Einloggen'}
           </button>
